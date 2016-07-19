@@ -254,7 +254,7 @@ int do_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 }
 
 #if !defined(TARGET_OPENRISC) && !defined(TARGET_UNICORE32) && \
-    !defined(TARGET_X86_64)
+    !defined(TARGET_X86_64) && !defined(TARGET_RISCV)
 /* Just set the guest's signal mask to the specified value; the
  * caller is assumed to have called block_signals() already.
  */

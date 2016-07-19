@@ -3775,6 +3775,39 @@ void cpu_loop(CPUTLGState *env)
 
 #endif
 
+#ifdef TARGET_RISCV
+
+void cpu_loop(CPURISCVState *env)
+{
+    CPUState *cs = CPU(riscv_env_get_cpu(env));
+    int trapnr, gdbsig;
+
+    for (;;) {
+        cpu_exec_start(cs);
+        trapnr = cpu_exec(cs);
+        cpu_exec_end(cs);
+	gdbsig = 0;
+
+        switch (trapnr) {
+        default:
+            EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
+                     trapnr);
+            gdbsig = TARGET_SIGILL;
+            break;
+        }
+        if (gdbsig) {
+            gdb_handlesig(cs, gdbsig);
+            if (gdbsig != TARGET_SIGTRAP) {
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        process_pending_signals(env);
+    }
+}
+
+#endif /* TARGET_RISCV */
+
 THREAD CPUState *thread_cpu;
 
 void task_settid(TaskState *ts)
@@ -4712,6 +4745,11 @@ int main(int argc, char **argv, char **envp)
 
         env->sr = regs->sr;
         env->pc = regs->pc;
+    }
+#elif defined(TARGET_RISCV)
+    {
+        env->pc = regs->sepc;
+        env->sp = regs->sp;
     }
 #elif defined(TARGET_SH4)
     {
