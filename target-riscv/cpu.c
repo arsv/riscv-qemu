@@ -51,6 +51,7 @@ static void riscv_cpu_reset(CPUState *s)
 {
     /* stub */
     printf("%s\n", __FUNCTION__);
+    s->exception_index = EXCP_NONE;
 }
 
 static bool riscv_cpu_has_work(CPUState *cs)

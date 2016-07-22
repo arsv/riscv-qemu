@@ -27,6 +27,14 @@
 
 #define MMU_USER_IDX 0
 
+/* Values for exception_index; these are internal to QEMU and need not match
+   the actual CPU exception values (scause). QEMU will stop execution on any
+   non-negative value. To avoid confusion, excp 0 won't be used for anything
+   meaningful. */
+#define EXCP_NONE        -1
+#define EXCP_UNKNOWN      0
+#define EXCP_ILLEGAL      1   /* illegal instruction */
+
 #define CPUArchState struct CPURISCVState
 
 #include "qemu-common.h"

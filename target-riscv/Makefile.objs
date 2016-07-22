@@ -1,1 +1,1 @@
-obj-y += init.o cpu.o translate.o
+obj-y += init.o cpu.o translate.o exception.o

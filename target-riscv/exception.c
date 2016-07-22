@@ -1,5 +1,5 @@
 /*
- * RISC-V helper defines
+ * RISC-V exception.
  *
  * Copyright (c) 2016 Alex Suykov <alex.suykov@gmail.com>
  *
@@ -16,4 +16,26 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
-DEF_HELPER_FLAGS_2(exception, 0, void, env, i32)
+
+#include "qemu/osdep.h"
+#include "cpu.h"
+#include "exec/helper-proto.h"
+#include "exception.h"
+#include "exec/exec-all.h"
+
+void QEMU_NORETURN raise_exception(RISCVCPU *cpu, uint32_t excp)
+{
+    CPUState *cs = CPU(cpu);
+
+    printf("%s\n", __FUNCTION__);
+    cs->exception_index = excp;
+    cpu_loop_exit_restore(cs, 0);
+}
+
+void HELPER(exception)(CPURISCVState *env, uint32_t excp)
+{
+    RISCVCPU *cpu = riscv_env_get_cpu(env);
+
+    printf("%s\n", __FUNCTION__);
+    raise_exception(cpu, excp);
+}
