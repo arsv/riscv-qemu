@@ -81,13 +81,6 @@ static void riscv_cpu_set_pc(CPUState *cs, vaddr value)
     cpu->env.pc = value;
 }
 
-static void riscv_cpu_dump_state(CPUState *cs,
-        FILE *f, fprintf_function cpu_fprintf, int flags)
-{
-    /* stub */
-    printf("%s\n", __FUNCTION__);
-}
-
 /* QOM stuff, class registration. */
 
 static void riscv_cpu_class_init(ObjectClass *oc, void *data)

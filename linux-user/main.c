@@ -4749,7 +4749,7 @@ int main(int argc, char **argv, char **envp)
 #elif defined(TARGET_RISCV)
     {
         env->pc = regs->sepc;
-        env->sp = regs->sp;
+        env->gpr[xSP] = regs->sp;
     }
 #elif defined(TARGET_SH4)
     {

@@ -35,6 +35,12 @@
 #define EXCP_UNKNOWN      0
 #define EXCP_ILLEGAL      1   /* illegal instruction */
 
+/* Special names for registers */
+
+#define xSP 2	/* gpr[2] is stack pointer */
+#define xGP 3	/* gpr[2] is global pointer */
+#define xTP 4	/* gpr[2] is thread pointer */
+
 #define CPUArchState struct CPURISCVState
 
 #include "qemu-common.h"
@@ -61,7 +67,7 @@ typedef struct RISCVCPUClass {
 
 typedef struct CPURISCVState {
     target_ulong pc;
-    target_ulong sp;
+    target_ulong gpr[32];
 
     CPU_COMMON
 
@@ -86,6 +92,8 @@ static inline RISCVCPU *riscv_env_get_cpu(CPURISCVState *env)
 void cpu_riscv_list(FILE *f, fprintf_function cpu_fprintf);
 RISCVCPU *cpu_riscv_init(const char *cpu_model);
 int cpu_riscv_signal_handler(int host_signum, void *pinfo, void *puc);
+void riscv_cpu_dump_state(CPUState *cs,
+        FILE *f, fprintf_function cpu_fprintf, int flags);
 
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))

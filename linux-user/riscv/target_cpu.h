@@ -4,7 +4,7 @@
 static inline void cpu_clone_regs(CPURISCVState *env, target_ulong newsp)
 {
     if (newsp)
-        env->sp = newsp; /* x30 (sp) stack pointer */
+        env->gpr[xSP] = newsp;
 
     /* stub */
 }
