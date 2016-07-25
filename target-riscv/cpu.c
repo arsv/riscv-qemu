@@ -29,8 +29,6 @@ static void riscv_cpu_init(Object *obj)
     CPUState *cs = CPU(obj);
     RISCVCPU *cpu = RISCV_CPU(obj);
 
-    printf("%s\n", __FUNCTION__);
-
     cs->env_ptr = &cpu->env;
     cpu_exec_init(cs, &error_abort);
 
@@ -49,8 +47,15 @@ static void riscv_cpu_realize(DeviceState *dev, Error **errp)
 
 static void riscv_cpu_reset(CPUState *s)
 {
-    /* stub */
-    printf("%s\n", __FUNCTION__);
+    RISCVCPU *cpu = RISCV_CPU(s);
+    CPURISCVState *env = &cpu->env;
+
+    memset(env, 0, sizeof(*env));
+
+    /* No point in setting env->pc for linux-user mode, it's going
+       to be set anyway by the elf loader. */
+
+    /* XXX: why is this necessary? */
     s->exception_index = EXCP_NONE;
 }
 

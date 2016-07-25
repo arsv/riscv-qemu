@@ -34,12 +34,22 @@
 #define EXCP_NONE        -1
 #define EXCP_UNKNOWN      0
 #define EXCP_ILLEGAL      1   /* illegal instruction */
+#define EXCP_SYSCALL      2   /* linux syscall (ecall in linux-user mode) */
 
 /* Special names for registers */
 
 #define xSP 2	/* gpr[2] is stack pointer */
 #define xGP 3	/* gpr[2] is global pointer */
 #define xTP 4	/* gpr[2] is thread pointer */
+
+#define xA0 10  /* gpr[10-17] are syscall arguments */
+#define xA1 11
+#define xA2 12
+#define xA3 13
+#define xA4 14
+#define xA5 15
+#define xA6 16
+#define xA7 17  /* syscall number goes here */
 
 #define CPUArchState struct CPURISCVState
 

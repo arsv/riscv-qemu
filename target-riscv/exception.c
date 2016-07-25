@@ -27,7 +27,6 @@ void QEMU_NORETURN raise_exception(RISCVCPU *cpu, uint32_t excp)
 {
     CPUState *cs = CPU(cpu);
 
-    printf("%s\n", __FUNCTION__);
     cs->exception_index = excp;
     cpu_loop_exit_restore(cs, 0);
 }
@@ -36,6 +35,5 @@ void HELPER(exception)(CPURISCVState *env, uint32_t excp)
 {
     RISCVCPU *cpu = riscv_env_get_cpu(env);
 
-    printf("%s\n", __FUNCTION__);
     raise_exception(cpu, excp);
 }

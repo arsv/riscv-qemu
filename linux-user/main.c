@@ -3781,14 +3781,32 @@ void cpu_loop(CPURISCVState *env)
 {
     CPUState *cs = CPU(riscv_env_get_cpu(env));
     int trapnr, gdbsig;
+    target_ulong ret;
 
     for (;;) {
         cpu_exec_start(cs);
         trapnr = cpu_exec(cs);
         cpu_exec_end(cs);
-	gdbsig = 0;
+        gdbsig = 0;
 
         switch (trapnr) {
+        case EXCP_SYSCALL:
+            env->pc += 4;
+            ret = do_syscall(env,
+                             env->gpr[xA7],
+                             env->gpr[xA0],
+                             env->gpr[xA1],
+                             env->gpr[xA2],
+                             env->gpr[xA3],
+                             env->gpr[xA4],
+                             env->gpr[xA5],
+                             0, 0);
+            if (ret == -TARGET_ERESTARTSYS) {
+                env->pc -= 4;
+            } else if (ret != -TARGET_QEMU_ESIGRETURN) {
+                env->gpr[xA0] = ret;
+            }
+            break;
         default:
             EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
                      trapnr);
