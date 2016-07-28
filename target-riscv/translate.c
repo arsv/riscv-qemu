@@ -17,7 +17,7 @@
 typedef struct DisasContext {
     TranslationBlock *tb;
     target_ulong pc;
-    uint32_t is_jmp;
+    bool jump;
 } DisasContext;
 
 static TCGv_env cpu_env;
@@ -284,7 +284,7 @@ static void rv_JAL(struct DisasContext* dc, uint32_t insn)
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
     tcg_gen_exit_tb(0);
 
-    dc->is_jmp = DISAS_UPDATE;
+    dc->jump = true;
 }
 
 /* Opcode 1100111: Jump and link register, rd = pc, pc += rs + imm
@@ -331,7 +331,7 @@ static void rv_JALR(struct DisasContext* dc, uint32_t insn)
     /* We're clear, set PC */
     tcg_gen_add_tl(cpu_pc, cpu_pc, va);
     tcg_gen_exit_tb(0);
-    dc->is_jmp = DISAS_UPDATE;
+    dc->jump = true;
 }
 
 /* Opcode 1100011: conditional branch, if(rs1 op rs2) pc = pc + imm;
@@ -522,7 +522,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
     dc->tb = tb;
     dc->pc = tb->pc;
-    dc->is_jmp = DISAS_NEXT;
+    dc->jump = false;
 
     gen_tb_start(tb);
 
@@ -533,21 +533,17 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
         uint32_t insn = cpu_ldl_code(&cpu->env, dc->pc);
         decode(dc, insn);
 
-        num_insns++;
         dc->pc += 4;
-    } while (dc->is_jmp == DISAS_NEXT
-             && !tcg_op_buf_full()
-             && (dc->pc < next_page_start)
-             && num_insns < max_insns);
 
-    switch (dc->is_jmp) {
-        case DISAS_NEXT:
-            tcg_gen_movi_tl(cpu_pc, dc->pc);
-            tcg_gen_exit_tb(0);
-        case DISAS_UPDATE:
-        case DISAS_JUMP:
-        case DISAS_TB_JUMP:
-            break;
+	if(dc->jump)
+		break;
+	if(dc->pc >= next_page_start)
+		break;
+    } while ((num_insns++ < max_insns) && !tcg_op_buf_full());
+
+    if(!dc->jump) {
+	    tcg_gen_movi_tl(cpu_pc, dc->pc);
+	    tcg_gen_exit_tb(0);
     }
 
     gen_tb_end(tb, num_insns);
