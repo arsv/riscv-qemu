@@ -156,7 +156,12 @@ static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
 }
 
 /* Arithmetics with immediate: rd = rs op imm;
-   ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI. */
+   ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI.
+
+   Writes to x0 are nops -- except if the flags are wrong, in which case
+   exception must be raised regardless of where the results goes.
+   Flags are checked late, so a temp is used instead of x0.
+   TCG optimizer should remove it as dead code anyway. */
 
 static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
 {
@@ -166,9 +171,7 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
     unsigned shamt = BITFIELD(insn, 24, 20);
     unsigned flags = BITFIELD(insn, 31, 25);
 
-    if(!rd) return; /* write to x0 is nop */
-
-    TCGv vd = cpu_gpr[rd];
+    TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
     TCGv vs = cpu_gpr[rs];
 
     switch(BITFIELD(insn, 14, 12))
@@ -183,6 +186,8 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
         case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
+
+    if(!rd) tcg_temp_free(vd);
 }
 
 /* Logical SLR and arithm SLA shift right: rd = rs1 << rs2
@@ -218,9 +223,7 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
     if(flags & (1<<5))
         func3 |= (1<<3);   /* prefix func3 with arithm bit */
 
-    if(!rd) return; /* write to x0 is nop, but only if the flags are right */
-
-    TCGv vd = cpu_gpr[rd];
+    TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
@@ -238,6 +241,8 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
         default:
         illegal: gen_exception(dc, EXCP_ILLEGAL);
     }
+
+    if(!rd) tcg_temp_free(vd);
 }
 
 /* Jump And Link: rd = pc, pc = pc + imm
@@ -408,7 +413,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
-    if(rd)  tcg_temp_free(vd);
+    if(!rd) tcg_temp_free(vd);
     if(imm) tcg_temp_free(va);
 }
 
