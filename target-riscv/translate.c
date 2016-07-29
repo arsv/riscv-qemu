@@ -332,6 +332,9 @@ static void rv_JALR(struct DisasContext* dc, uint32_t insn)
     tcg_gen_add_tl(cpu_pc, cpu_pc, va);
     tcg_gen_exit_tb(0);
     dc->jump = true;
+
+    tcg_temp_free(vx);
+    tcg_temp_free(va);
 }
 
 /* Opcode 1100011: conditional branch, if(rs1 op rs2) pc = pc + imm;
