@@ -534,15 +534,15 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
         dc->pc += 4;
 
-	if(dc->jump)
-		break;
-	if(dc->pc >= next_page_start)
-		break;
+        if(dc->jump)
+            break;
+        if(dc->pc >= next_page_start)
+            break;
     } while ((num_insns++ < max_insns) && !tcg_op_buf_full());
 
     if(!dc->jump) {
-	    tcg_gen_movi_tl(cpu_pc, dc->pc);
-	    tcg_gen_exit_tb(0);
+        tcg_gen_movi_tl(cpu_pc, dc->pc);
+        tcg_gen_exit_tb(0);
     }
 
     gen_tb_end(tb, num_insns);
