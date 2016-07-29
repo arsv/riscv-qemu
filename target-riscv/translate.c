@@ -101,7 +101,7 @@ static TCGv temp_new_rsum(unsigned rs, int32_t imm)
     return vs;
 }
 
-/* Opcode 0110111: load upper immediate, rd = (imm << 12).
+/* Load upper immediate: rd = (imm << 12)
    Since imm is bits 31:12 in insn, there is no need to shift it. */
 
 static void rv_LUI(struct DisasContext* dc, uint32_t insn)
@@ -116,7 +116,7 @@ static void rv_LUI(struct DisasContext* dc, uint32_t insn)
     tcg_gen_ext32s_tl(vd, vd);
 }
 
-/* Opcode 0010111: add upper intermediate to pc, rd = pc + (imm << 12).
+/* Add upper intermediate to pc: rd = pc + (imm << 12)
    Again, no need to shift imm. */
 
 static void rv_AUIPC(struct DisasContext* dc, uint32_t insn)
@@ -133,7 +133,7 @@ static void rv_AUIPC(struct DisasContext* dc, uint32_t insn)
     tcg_gen_add_tl(vd, vd, tcg_const_tl(dc->pc));
 }
 
-/* Opcode 0010011 func 001: logical imm shift left. */
+/* Shift Left/Right Logical/Arithm by Immediate. */
 
 static void rv_SLLI(struct DisasContext* dc, TCGv vd, TCGv vs,
         unsigned shamt, unsigned flags)
@@ -143,8 +143,6 @@ static void rv_SLLI(struct DisasContext* dc, TCGv vd, TCGv vs,
     else
         tcg_gen_shli_tl(vd, vs, shamt);
 }
-
-/* Opcode 0010011 func 101: logical SRLI and airthm SRAI imm shift right. */
 
 static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
         unsigned shamt, unsigned flags)
@@ -157,7 +155,7 @@ static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
         tcg_gen_shri_tl(vd, vs, shamt);
 }
 
-/* Opcode 0010011: arithmetics with immediate, rd = rs op imm;
+/* Arithmetics with immediate: rd = rs op imm;
    ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI. */
 
 static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
@@ -187,7 +185,7 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Opcode 0110011 func 101: logical SLR and arithm SLA shift right.
+/* Logical SLR and arithm SLA shift right: rd = rs1 << rs2
    RISC-V apparently *ignores* high bits in shift amount register,
    so (v >> 75) == (v >> (75 % 64)) == (v >> 11) */
 
@@ -204,7 +202,7 @@ static void rv_SRx(TCGv vd, TCGv vs1, TCGv vs2, int arithm)
     tcg_temp_free(shamt);
 }
 
-/* Opcode 0110011: register arithmetics, rd = rs1 op rs2.
+/* Register arithmetics: rd = rs1 op rs2
    ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
 
 static void rv_OP(struct DisasContext* dc, uint32_t insn)
@@ -242,7 +240,7 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Opcode 1101111: Jump and link, rd = pc; pc = pc + imm
+/* Jump And Link: rd = pc, pc = pc + imm
 
    Trying to jump (set PC to) a mis-aligned address always results
    in exception. Thus PC is always properly aligned on the real hw,
@@ -287,7 +285,7 @@ static void rv_JAL(struct DisasContext* dc, uint32_t insn)
     dc->jump = true;
 }
 
-/* Opcode 1100111: Jump and link register, rd = pc, pc += rs + imm
+/* Jump And Link Register: rd = pc, pc += rs + imm
 
    Indirect jump has the same alignment issues as JAL.
    The spec explicitly demands dropping bit 0 from the calculated
@@ -337,7 +335,7 @@ static void rv_JALR(struct DisasContext* dc, uint32_t insn)
     tcg_temp_free(va);
 }
 
-/* Opcode 1100011: conditional branch, if(rs1 op rs2) pc = pc + imm;
+/* Conditional branch: if(rs1 op rs2) pc = pc + imm
    BEQ, BNE, BLT, BLTU, BGE, BGEU.
 
    The actual TCG code generated is
@@ -387,8 +385,7 @@ static void rv_BRANCH(struct DisasContext* dc, uint32_t insn)
     gen_set_label(l);
 }
 
-/* Opcode 0000011: memory load, rd = [rs + imm];
-   LB, LH, LW, LD, LBU, LHU */
+/* Memory load: rd = [rs + imm]; LB, LH, LW, LD, LBU, LHU */
 
 static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
 {
@@ -415,7 +412,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
     if(imm) tcg_temp_free(va);
 }
 
-/* Opcode 0100011: memory store, [rs1 + imm] = rs2; SB, SH, SW, SD. */
+/* Memory store: [rs1 + imm] = rs2; SB, SH, SW, SD. */
 
 static void rv_STORE(struct DisasContext* dc, uint32_t insn)
 {
@@ -440,7 +437,7 @@ static void rv_STORE(struct DisasContext* dc, uint32_t insn)
     if(imm) tcg_temp_free(va);
 }
 
-/* Opcode 0001111: memory FENCE and FENCE.I with i-cache flush.
+/* Memory FENCE and FENCE.I with i-cache flush.
    No-ops for now; rd, rs and imm ignored as per spec. */
 
 static void rv_MISCMEM(struct DisasContext* dc, uint32_t insn)
@@ -454,7 +451,7 @@ static void rv_MISCMEM(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Opcode 1110011 func 000: privileged insns, plus ECALL and EBREAK. */
+/* Privileged insns, plus ECALL and EBREAK which may be used in U-level. */
 
 static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
 {
@@ -465,9 +462,8 @@ static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Opcode 1110011: syscalls and CSR ops.
-   These are actuall two completely unrelated instructions sharing
-   single opcode. */
+/* Syscalls and CSR ops. These are actuall two completely unrelated
+   instructions sharing a single opcode. */
 
 static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
 {
