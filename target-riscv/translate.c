@@ -27,6 +27,7 @@ static TCGv cpu_gpr[32];
 
 #define BITFIELD(src, end, start) \
             (((src) >> start) & ((1 << (end - start + 1)) - 1))
+const target_long rv_signbit = ((target_long)1 << (TARGET_LONG_BITS - 1));
 
 /* Register x0 is a zero-sink, always reads as 0 and writes there are ignored.
    Within qemu, it's an allocated TCGv holding 0, used directly for any read
@@ -207,39 +208,213 @@ static void rv_SRx(TCGv vd, TCGv vs1, TCGv vs2, int arithm)
     tcg_temp_free(shamt);
 }
 
+static void rv_MUL(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv sink = tcg_temp_new();
+    tcg_gen_muls2_tl(vd, sink, vs1, vs2);
+    tcg_temp_free(sink);
+}
+
+static void rv_MULH(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv sink = tcg_temp_new();
+    tcg_gen_muls2_tl(sink, vd, vs1, vs2);
+    tcg_temp_free(sink);
+}
+
+static void rv_MULHU(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv sink = tcg_temp_new();
+    tcg_gen_mulu2_tl(sink, vd, vs1, vs2);
+    tcg_temp_free(sink);
+}
+
+/* Signed x unsigned case, not available in TCG.
+   Workaround: (-s * u) = -(s * u) = ~(s * u) + 1.
+   Add-with-carry is used for the final two-word-long addition. */
+
+static void rv_MULHSU(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGLabel* skip = gen_new_label();
+    TCGLabel* done = gen_new_label();
+
+    TCGv sign = tcg_temp_local_new();
+    tcg_gen_andi_tl(sign, vs1, rv_signbit);
+    tcg_gen_brcondi_tl(TCG_COND_NE, sign, 0, skip);
+    tcg_temp_free(sign);
+
+    /* positive vs1 case */
+    TCGv sink = tcg_temp_local_new();
+    tcg_gen_mulu2_tl(sink, vd, vs1, vs2);
+    tcg_temp_free(sink);
+    tcg_gen_br(done);
+
+    gen_set_label(skip);
+
+    /* negative vs1 case */
+    TCGv pos1 = tcg_temp_new();
+    tcg_gen_neg_tl(pos1, vs1);
+    TCGv resh = tcg_temp_new();
+    TCGv resl = tcg_temp_new();
+    tcg_gen_mulu2_tl(resl, resh, pos1, vs2);
+    tcg_temp_free(pos1);
+
+    /* negate resl with carry */
+    TCGv notresl = tcg_temp_new();
+    tcg_gen_xori_tl(notresl, notresl, -1);    /* notresl = ~resl */
+    tcg_gen_addi_tl(resl, notresl, 1);        /* resl = ~resl + 1 */
+
+    /* set vd = ~resh + carry */
+    tcg_gen_xori_tl(vd, resh, -1);            /* vd = ~resh */
+    tcg_gen_brcond_tl(TCG_COND_LE, notresl, resl, done);
+    tcg_gen_addi_tl(vd, vd, 1);               /* vd = vd + 1 */
+
+    gen_set_label(done);
+
+    tcg_temp_free(resh);
+    tcg_temp_free(resl);
+    tcg_temp_free(notresl);
+}
+
+/* RISC-V signals division errors (div by zero and overflow)
+   by returning certain special values in rd. The checks
+   are common but the values are different for DIVs and REMs. */
+
+/* if(rs2 == 0) { rd = mark; goto done; } */
+
+static void gen_div_zerocheck(TCGLabel* done,
+        TCGv vd, TCGv vs1, TCGv vs2, int op_is_rem)
+{
+    TCGLabel* skip = gen_new_label();
+
+    tcg_gen_brcondi_tl(TCG_COND_NE, vs2, 0, skip);
+
+    if(op_is_rem)
+        tcg_gen_mov_tl(vd, vs1);
+    else
+        tcg_gen_movi_tl(vd, -1);
+
+    tcg_gen_br(done);
+    gen_set_label(skip);
+}
+
+/* if(rs1 == signbit && rs2 == -1) { rd = mark; goto done; } */
+
+static void gen_div_overcheck(TCGLabel* done,
+        TCGv vd, TCGv vs1, TCGv vs2, int op_is_rem)
+{
+    TCGLabel* skip = gen_new_label();
+
+    TCGv c1 = tcg_temp_new();
+    TCGv c2 = tcg_temp_new();
+
+    tcg_gen_setcondi_tl(TCG_COND_EQ, c1, vs2, -1);
+    tcg_gen_setcondi_tl(TCG_COND_EQ, c2, vs1, rv_signbit);
+    tcg_gen_and_tl(c1, c1, c2);
+    tcg_gen_brcondi_tl(TCG_COND_EQ, c1, 0, skip);
+
+    tcg_temp_free(c1);
+    tcg_temp_free(c2);
+
+    if(op_is_rem)
+        tcg_gen_movi_tl(vd, 0);
+    else
+        tcg_gen_mov_tl(vd, vs1);
+
+    tcg_gen_br(done);
+    gen_set_label(skip);
+}
+
+/* Signed/unsigned DIV and REM: vd = vs1 / vs2 */
+
+static void rv_DIV(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vs1, vs2, 0);
+    gen_div_overcheck(done, vd, vs2, vs2, 0);
+    tcg_gen_div_tl(vd, vs1, vs2);
+
+    gen_set_label(done);
+}
+
+static void rv_DIVU(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vs1, vs2, 0);
+    tcg_gen_divu_tl(vd, vs1, vs2);
+
+    gen_set_label(done);
+}
+
+static void rv_REM(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vs1, vs2, 1);
+    gen_div_overcheck(done, vd, vs2, vs2, 1);
+    tcg_gen_rem_tl(vd, vs1, vs2);
+
+    gen_set_label(done);
+}
+
+static void rv_REMU(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vs1, vs2, 1);
+    tcg_gen_remu_tl(vd, vs1, vs2);
+
+    gen_set_label(done);
+}
+
 /* Register arithmetics: rd = rs1 op rs2
-   ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
+   ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND.
+
+   3-bit func field is not enough to encode all possible
+   ops here, so two extra bits are spilled into the upper
+   imm field of insn. */
 
 static void rv_OP(struct DisasContext* dc, uint32_t insn)
 {
     unsigned flags = BITFIELD(insn, 31, 25);
     unsigned rs2 = BITFIELD(insn, 24, 20);
     unsigned rs1 = BITFIELD(insn, 19, 15);
-    unsigned func3 = BITFIELD(insn, 14, 12);
+    unsigned func = BITFIELD(insn, 14, 12); /* 3 bits initially */
     unsigned rd = BITFIELD(insn, 11, 7);
 
-    if(flags & ~(1<<5))
-        goto illegal;
+    if(flags & ~((1<<5) | (1<<0)))
+        func = -1;        /* force default: case below */
+    if(flags & (1<<0))
+        func |= (1<<3);   /* prefix func with mul bit */
     if(flags & (1<<5))
-        func3 |= (1<<3);   /* prefix func3 with arithm bit */
+        func |= (1<<4);   /* prefix func with arithm bit */
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(func3)
+    switch(func)
     {
-        case /* 0.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
-        case /* 1.000 */ 8: tcg_gen_sub_tl(vd, vs1, vs2); break;
-        case /* 0.100 */ 4: tcg_gen_xor_tl(vd, vs1, vs2); break;
-        case /* 0.110 */ 6: tcg_gen_or_tl(vd, vs1, vs2); break;
-        case /* 0.111 */ 7: tcg_gen_and_tl(vd, vs1, vs2); break;
-        case /* 0.010 */ 2: tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2); break;
-        case /* 0.011 */ 3: tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2); break;
-        case /* 0.101 */ 5: rv_SRx(vd, vs1, vs2, 0); break;
-        case /* 1.101 */13: rv_SRx(vd, vs1, vs2, 1); break;
-        default:
-        illegal: gen_exception(dc, EXCP_ILLEGAL);
+        case /* 00.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
+        case /* 10.000 */16: tcg_gen_sub_tl(vd, vs1, vs2); break;
+        case /* 00.100 */ 4: tcg_gen_xor_tl(vd, vs1, vs2); break;
+        case /* 00.110 */ 6: tcg_gen_or_tl(vd, vs1, vs2); break;
+        case /* 00.111 */ 7: tcg_gen_and_tl(vd, vs1, vs2); break;
+        case /* 00.010 */ 2: tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2); break;
+        case /* 00.011 */ 3: tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2); break;
+        case /* 00.101 */ 5: rv_SRx(vd, vs1, vs2, 0); break;
+        case /* 10.101 */21: rv_SRx(vd, vs1, vs2, 1); break;
+        case /* 01.000 */ 8: rv_MUL(vd, vs1, vs2); break;
+        case /* 01.001 */ 9: rv_MULH(vd, vs1, vs2); break;
+        case /* 01.010 */10: rv_MULHSU(vd, vs1, vs2); break;
+        case /* 01.011 */11: rv_MULHU(vd, vs1, vs2); break;
+        case /* 01.100 */12: rv_DIV(vd, vs1, vs2); break;
+        case /* 01.101 */13: rv_DIVU(vd, vs1, vs2); break;
+        case /* 01.110 */14: rv_REM(vd, vs1, vs2); break;
+        case /* 01.111 */15: rv_REMU(vd, vs1, vs2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
     if(!rd) tcg_temp_free(vd);
