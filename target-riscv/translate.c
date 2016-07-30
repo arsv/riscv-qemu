@@ -525,7 +525,7 @@ static void rv_JALR(struct DisasContext* dc, uint32_t insn)
                 exit
         skip:   ...
 
-   Note the condition is *inverse* of what the RISC-V opcode would imply!
+   Note the condition is *inverse* of what RISC-V opcode would imply!
 
    See JAL/JALR comments on target address (mis-)alignment handling. */
 
