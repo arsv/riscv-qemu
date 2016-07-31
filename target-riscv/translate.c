@@ -103,7 +103,7 @@ static TCGv temp_new_rsum(unsigned rs, int32_t imm)
 }
 
 /* Load upper immediate: rd = (imm << 12)
-   Since imm is bits 31:12 in insn, there is no need to shift it. */
+   Since imm is 31:12 in insn, there is no need to shift it. */
 
 static void rv_LUI(struct DisasContext* dc, uint32_t insn)
 {
@@ -229,9 +229,9 @@ static void rv_MULHU(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(sink);
 }
 
-/* Signed x unsigned case, not available in TCG.
+/* Signed x unsigned case, not implemented in TCG.
    Workaround: (-s * u) = -(s * u) = ~(s * u) + 1.
-   Add-with-carry is used for the final two-word-long addition. */
+   The final addition is two-word long. */
 
 static void rv_MULHSU(TCGv vd, TCGv vs1, TCGv vs2)
 {
@@ -423,7 +423,7 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
 /* Jump And Link: rd = pc, pc = pc + imm
 
    Trying to jump (set PC to) a mis-aligned address always results
-   in exception. Thus PC is always properly aligned on the real hw,
+   in exception. Thus PC is always properly aligned on real hw,
    and it is only necessary to check imm even if the spec demands
    the final address to be aligned.
 
@@ -433,13 +433,13 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
    the code being executed. The lower bit(s) of PC are effectively
    ignored.
 
-   This is apparently consistent with Spike behavior, and the idea
-   of all RISC-V code being position independent by design.
+   This is apparently consistent with Spike behavior, and with
+   the idea of all RISC-V code being position independent by design.
 
    The lowest bit of imm is not encoded, and assumed to be zero.
    Bit 1 may be allowed to be non-zero if two-byte opcodes are
    supported (extension C) but they are not at this point.
-   With extension C support enabled, JAL can *not* generate
+   With extension C support enabled, JAL never generates any
    exceptions at all. */
 
 static void rv_JAL(struct DisasContext* dc, uint32_t insn)
@@ -471,7 +471,7 @@ static void rv_JAL(struct DisasContext* dc, uint32_t insn)
    The spec explicitly demands dropping bit 0 from the calculated
    target address (mask -2 below) and non-zero bit 1 only matters
    if extesion C is not supported. With extension C enabled, JALR
-   may not generate any exceptions.
+   never generates any exceptions.
 
    PC is again assumed to be pre-aligned. */
 
@@ -657,7 +657,7 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Instructions are decoded in two jumps: first major opcode,
+/* Instructions are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
    This makes encoding irregularities way easier to handle
    but requires each major opcode handler to gen EXCP_ILLEGAL
@@ -669,7 +669,7 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
    Opcode values are "named" via function names next to them.
    Using symbolic constants instead of numeric opcode values
    does not add to readability, and makes checking against
-   intruction set listings way harder than it should be. */
+   ISA listings way harder than it should be. */
 
 static void decode(struct DisasContext* dc, uint32_t insn)
 {
