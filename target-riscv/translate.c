@@ -404,33 +404,39 @@ static void rv_REMU(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-/* Register arithmetics: rd = rs1 op rs2
-   ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND.
+/* 3-bit func field is not enough to encode all possible funcs
+   for OP and OP32 instructions, so two extra bits are spilled
+   into the upper imm field of insn. */
 
-   3-bit func field is not enough to encode all possible
-   ops here, so two extra bits are spilled into the upper
-   imm field of insn. */
-
-static void rv_OP(struct DisasContext* dc, uint32_t insn)
+static unsigned rv_op_extfunc(uint32_t insn)
 {
-    unsigned flags = BITFIELD(insn, 31, 25);
-    unsigned rs2 = BITFIELD(insn, 24, 20);
-    unsigned rs1 = BITFIELD(insn, 19, 15);
     unsigned func = BITFIELD(insn, 14, 12); /* 3 bits initially */
-    unsigned rd = BITFIELD(insn, 11, 7);
+    unsigned flags = BITFIELD(insn, 31, 25);
 
     if(flags & ~((1<<5) | (1<<0)))
-        func = -1;        /* force default: case below */
+        return -1;        /* force default case in switches */
     if(flags & (1<<0))
         func |= (1<<3);   /* prefix func with mul bit */
     if(flags & (1<<5))
         func |= (1<<4);   /* prefix func with arithm bit */
 
+    return func;
+}
+
+/* Register arithmetics: rd = rs1 op rs2
+   ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
+
+static void rv_OP(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned rs2 = BITFIELD(insn, 24, 20);
+    unsigned rs1 = BITFIELD(insn, 19, 15);
+    unsigned rd = BITFIELD(insn, 11, 7);
+
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(func)
+    switch(rv_op_extfunc(insn))
     {
         case /* 00.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
         case /* 10.000 */16: tcg_gen_sub_tl(vd, vs1, vs2); break;
@@ -462,18 +468,9 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
 
 static void rv_OP32(struct DisasContext* dc, uint32_t insn)
 {
-    unsigned flags = BITFIELD(insn, 31, 25);
     unsigned rs2 = BITFIELD(insn, 24, 20);
     unsigned rs1 = BITFIELD(insn, 19, 15);
-    unsigned func = BITFIELD(insn, 14, 12); /* 3 bits initially */
     unsigned rd = BITFIELD(insn, 11, 7);
-
-    if(flags & ~((1<<5) | (1<<0)))
-        func = -1;        /* force default: case below */
-    if(flags & (1<<0))
-        func |= (1<<3);   /* prefix func with mul bit */
-    if(flags & (1<<5))
-        func |= (1<<4);   /* prefix func with arithm bit */
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
     TCGv vs1 = cpu_gpr[rs1];
@@ -482,7 +479,7 @@ static void rv_OP32(struct DisasContext* dc, uint32_t insn)
     /* cast rs1 to 32 bit, using rd as a temp register */
     tcg_gen_ext32s_tl(vd, vs1);
 
-    switch(func)
+    switch(rv_op_extfunc(insn))
     {
         case /* 00.000 */ 0: tcg_gen_add_tl(vd, vd, vs2); break;
         case /* 10.000 */16: tcg_gen_sub_tl(vd, vd, vs2); break;
