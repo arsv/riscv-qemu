@@ -191,6 +191,33 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
     if(!rd) tcg_temp_free(vd);
 }
 
+/* Like OPIMM but with 32-bit words on RV64; ADDIW, SLLIW, SRLIW, SRAIW */
+
+static void rv_OPIMM32(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned rd = BITFIELD(insn, 11, 7);
+    unsigned rs = BITFIELD(insn, 19, 15);
+    int32_t imm = ((int32_t)insn >> 20);      /* ADDIW only */
+    unsigned shamt = BITFIELD(insn, 24, 20);  /* SLLIW, SRLIW, SRAIW */
+    unsigned flags = BITFIELD(insn, 31, 25);  /* SLLIW, SRLIW, SRAIW */
+
+    TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
+    TCGv vs = cpu_gpr[rs];
+
+    switch(BITFIELD(insn, 14, 12))
+    {
+        case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
+        case /* 001 */ 1: rv_SLLI(dc, vd, vs, shamt, flags); break;
+        case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
+        default: gen_exception(dc, EXCP_ILLEGAL); goto out;
+    }
+
+    tcg_gen_ext32s_tl(vd, vd);
+
+out:
+    if(!rd) tcg_temp_free(vd);
+}
+
 /* Logical SLR and arithm SLA shift right: rd = rs1 << rs2
    RISC-V apparently *ignores* high bits in shift amount register,
    so (v >> 75) == (v >> (75 % 64)) == (v >> 11) */
@@ -205,6 +232,14 @@ static void rv_SRx(TCGv vd, TCGv vs1, TCGv vs2, int arithm)
     else
         tcg_gen_shr_tl(vd, vs1, shamt);
 
+    tcg_temp_free(shamt);
+}
+
+static void rv_SLL(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv shamt = tcg_temp_new();
+    tcg_gen_andi_tl(shamt, vs2, TARGET_LONG_BITS - 1);
+    tcg_gen_shl_tl(vd, vs1, shamt);
     tcg_temp_free(shamt);
 }
 
@@ -404,6 +439,7 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
         case /* 00.111 */ 7: tcg_gen_and_tl(vd, vs1, vs2); break;
         case /* 00.010 */ 2: tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2); break;
         case /* 00.011 */ 3: tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2); break;
+        case /* 00.001 */ 1: rv_SLL(vd, vs1, vs2); break;
         case /* 00.101 */ 5: rv_SRx(vd, vs1, vs2, 0); break;
         case /* 10.101 */21: rv_SRx(vd, vs1, vs2, 1); break;
         case /* 01.000 */ 8: rv_MUL(vd, vs1, vs2); break;
@@ -417,6 +453,49 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
+    if(!rd) tcg_temp_free(vd);
+}
+
+/* Like OP but with 32-bit words on RV64. Same opcode encoding,
+   but some regular opcodes have no *W equivalent so just calling
+   rv_OP here is not an option. */
+
+static void rv_OP32(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned flags = BITFIELD(insn, 31, 25);
+    unsigned rs2 = BITFIELD(insn, 24, 20);
+    unsigned rs1 = BITFIELD(insn, 19, 15);
+    unsigned func = BITFIELD(insn, 14, 12); /* 3 bits initially */
+    unsigned rd = BITFIELD(insn, 11, 7);
+
+    if(flags & ~((1<<5) | (1<<0)))
+        func = -1;        /* force default: case below */
+    if(flags & (1<<0))
+        func |= (1<<3);   /* prefix func with mul bit */
+    if(flags & (1<<5))
+        func |= (1<<4);   /* prefix func with arithm bit */
+
+    TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
+    TCGv vs1 = cpu_gpr[rs1];
+    TCGv vs2 = cpu_gpr[rs2];
+
+    /* cast rs1 to 32 bit, using rd as a temp register */
+    tcg_gen_ext32s_tl(vd, vs1);
+
+    switch(func)
+    {
+        case /* 00.000 */ 0: tcg_gen_add_tl(vd, vd, vs2); break;
+        case /* 10.000 */16: tcg_gen_sub_tl(vd, vd, vs2); break;
+        case /* 00.001 */ 1: rv_SLL(vd, vd, vs2); break;
+        case /* 00.101 */ 5: rv_SRx(vd, vd, vs2, 0); break;
+        case /* 10.101 */21: rv_SRx(vd, vd, vs2, 1); break;
+        default: gen_exception(dc, EXCP_ILLEGAL); goto out;
+    }
+
+    /* sign-extend 32-bit result to fill the whole rd */
+    tcg_gen_ext32s_tl(vd, vd);
+
+out:
     if(!rd) tcg_temp_free(vd);
 }
 
@@ -683,7 +762,9 @@ static void decode(struct DisasContext* dc, uint32_t insn)
         case /* 0000011 */ 0x03: rv_LOAD(dc, insn); break;
         case /* 0100011 */ 0x23: rv_STORE(dc, insn); break;
         case /* 0010011 */ 0x13: rv_OPIMM(dc, insn); break;
+        case /* 0011011 */ 0x1B: rv_OPIMM32(dc, insn); break;
         case /* 0110011 */ 0x33: rv_OP(dc, insn); break;
+        case /* 0111011 */ 0x3B: rv_OP32(dc, insn); break;
         case /* 1110011 */ 0x73: rv_SYSTEM(dc, insn); break;
         case /* 0001111 */ 0x0F: rv_MISCMEM(dc, insn); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
