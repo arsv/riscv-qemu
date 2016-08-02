@@ -94,12 +94,33 @@ static void gen_exception(DisasContext *dc, unsigned int excp)
     tcg_temp_free_i32(tmp);
 }
 
-static TCGv temp_new_rsum(unsigned rs, int32_t imm)
+static TCGv temp_new_rsum(TCGv vs, int32_t imm)
 {
-    TCGv vs = tcg_temp_new();
-    tcg_gen_mov_tl(vs, cpu_gpr[rs]);
-    tcg_gen_addi_tl(vs, vs, imm);
-    return vs;
+    TCGv vt = tcg_temp_new();
+    tcg_gen_mov_tl(vt, vs);
+    tcg_gen_addi_tl(vt, vt, imm);
+    return vt;
+}
+
+static TCGv temp_new_ext32s(TCGv vs)
+{
+    TCGv vx = tcg_temp_new();
+    tcg_gen_ext32s_tl(vx, vs);
+    return vx;
+}
+
+static TCGv temp_new_ext32u(TCGv vs)
+{
+    TCGv vx = tcg_temp_new();
+    tcg_gen_ext32u_tl(vx, vs);
+    return vx;
+}
+
+static TCGv temp_new_andi(TCGv vs, target_long mask)
+{
+    TCGv vr = tcg_temp_new();
+    tcg_gen_andi_tl(vr, vs, mask);
+    return vr;
 }
 
 /* Load upper immediate: rd = (imm << 12)
@@ -222,16 +243,17 @@ out:
    RISC-V apparently *ignores* high bits in shift amount register,
    so (v >> 75) == (v >> (75 % 64)) == (v >> 11) */
 
-static void rv_SRx(TCGv vd, TCGv vs1, TCGv vs2, int arithm)
+static void rv_SRL(TCGv vd, TCGv vs1, TCGv vs2)
 {
-    TCGv shamt = tcg_temp_new();
-    tcg_gen_andi_tl(shamt, vs2, TARGET_LONG_BITS - 1);
+    TCGv shamt = temp_new_andi(vs2, TARGET_LONG_BITS - 1);
+    tcg_gen_shr_tl(vd, vs1, shamt);
+    tcg_temp_free(shamt);
+}
 
-    if(arithm)
-        tcg_gen_sar_tl(vd, vs1, shamt);
-    else
-        tcg_gen_shr_tl(vd, vs1, shamt);
-
+static void rv_SRA(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv shamt = temp_new_andi(vs2, TARGET_LONG_BITS - 1);
+    tcg_gen_sar_tl(vd, vs1, shamt);
     tcg_temp_free(shamt);
 }
 
@@ -446,8 +468,8 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
         case /* 00.010 */ 2: tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2); break;
         case /* 00.011 */ 3: tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2); break;
         case /* 00.001 */ 1: rv_SLL(vd, vs1, vs2); break;
-        case /* 00.101 */ 5: rv_SRx(vd, vs1, vs2, 0); break;
-        case /* 10.101 */21: rv_SRx(vd, vs1, vs2, 1); break;
+        case /* 00.101 */ 5: rv_SRL(vd, vs1, vs2); break;
+        case /* 10.101 */21: rv_SRA(vd, vs1, vs2); break;
         case /* 01.000 */ 8: rv_MUL(vd, vs1, vs2); break;
         case /* 01.001 */ 9: rv_MULH(vd, vs1, vs2); break;
         case /* 01.010 */10: rv_MULHSU(vd, vs1, vs2); break;
@@ -462,9 +484,139 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
     if(!rd) tcg_temp_free(vd);
 }
 
-/* Like OP but with 32-bit words on RV64. Same opcode encoding,
-   but some regular opcodes have no *W equivalent so just calling
-   rv_OP here is not an option. */
+static void rv_ADDW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    tcg_gen_add_tl(vd, vs1, vs2);
+    tcg_gen_ext32s_tl(vd, vd);
+}
+
+static void rv_SUBW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    tcg_gen_sub_tl(vd, vs1, vs2);
+    tcg_gen_ext32s_tl(vd, vd);
+}
+
+static void rv_SLLW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv shamt = temp_new_andi(vs2, 31);
+
+    tcg_gen_shl_tl(vd, vs1, shamt);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(shamt);
+}
+
+static void rv_SRLW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx = temp_new_ext32u(vs1);
+    TCGv shamt = temp_new_andi(vs2, 31);
+
+    tcg_gen_shr_tl(vd, vx, shamt);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(shamt);
+    tcg_temp_free(vx);
+}
+
+static void rv_SRAW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx = temp_new_ext32s(vs1);
+    TCGv shamt = temp_new_andi(vs2, 31);
+
+    tcg_gen_sar_tl(vd, vx, shamt);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(shamt);
+    tcg_temp_free(vx);
+}
+
+/* XXX: this one should do sign-extension, right? */
+
+static void rv_MULW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv sink = tcg_temp_new();
+    TCGv vxs1 = temp_new_ext32s(vs1);
+    TCGv vxs2 = temp_new_ext32s(vs2);
+
+    tcg_gen_muls2_tl(vd, sink, vxs1, vxs2);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(vxs2);
+    tcg_temp_free(vxs1);
+    tcg_temp_free(sink);
+}
+
+static void rv_DIVW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx1 = temp_new_ext32s(vs1);
+    TCGv vx2 = temp_new_ext32s(vs2);
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    /* gen_div_overcheck not needed, DIVW cannot overflow? */
+    tcg_gen_div_tl(vd, vx1, vx2);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(vx2);
+    tcg_temp_free(vx1);
+
+    gen_set_label(done);
+}
+
+static void rv_DIVUW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx1 = temp_new_ext32u(vs1);
+    TCGv vx2 = temp_new_ext32u(vs2);
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    tcg_gen_div_tl(vd, vx1, vx2);
+    tcg_gen_ext32u_tl(vd, vd);
+
+    tcg_temp_free(vx2);
+    tcg_temp_free(vx1);
+
+    gen_set_label(done);
+}
+
+static void rv_REMW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx1 = temp_new_ext32s(vs1);
+    TCGv vx2 = temp_new_ext32s(vs2);
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    /* gen_div_overcheck not needed, DIVW cannot overflow? */
+    tcg_gen_rem_tl(vd, vx1, vx2);
+    tcg_gen_ext32s_tl(vd, vd);
+
+    tcg_temp_free(vx2);
+    tcg_temp_free(vx1);
+
+    gen_set_label(done);
+}
+
+static void rv_REMUW(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    TCGv vx1 = temp_new_ext32u(vs1);
+    TCGv vx2 = temp_new_ext32u(vs2);
+    TCGLabel* done = gen_new_label();
+
+    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    tcg_gen_rem_tl(vd, vx1, vx2);
+    tcg_gen_ext32s_tl(vd, vd); /* sign-extend even in U case! */
+
+    tcg_temp_free(vx2);
+    tcg_temp_free(vx1);
+
+    gen_set_label(done);
+}
+
+/* Like OP but with 32-bit words on RV64.
+
+   Register handling is not uniform here, some insns sign-extend,
+   some zero-extend and some do not care at all. So each insn does
+   it in its own function. */
 
 static void rv_OP32(struct DisasContext* dc, uint32_t insn)
 {
@@ -476,23 +628,21 @@ static void rv_OP32(struct DisasContext* dc, uint32_t insn)
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    /* cast rs1 to 32 bit, using rd as a temp register */
-    tcg_gen_ext32s_tl(vd, vs1);
-
     switch(rv_op_extfunc(insn))
     {
-        case /* 00.000 */ 0: tcg_gen_add_tl(vd, vd, vs2); break;
-        case /* 10.000 */16: tcg_gen_sub_tl(vd, vd, vs2); break;
-        case /* 00.001 */ 1: rv_SLL(vd, vd, vs2); break;
-        case /* 00.101 */ 5: rv_SRx(vd, vd, vs2, 0); break;
-        case /* 10.101 */21: rv_SRx(vd, vd, vs2, 1); break;
-        default: gen_exception(dc, EXCP_ILLEGAL); goto out;
+        case /* 00.000 */ 0: rv_ADDW(vd, vs1, vs2); break;
+        case /* 10.000 */16: rv_SUBW(vd, vs1, vs2); break;
+        case /* 00.001 */ 1: rv_SLLW(vd, vd, vs2); break;
+        case /* 00.101 */ 5: rv_SRLW(vd, vd, vs2); break;
+        case /* 10.101 */21: rv_SRAW(vd, vd, vs2); break;
+        case /* 01.000 */ 8: rv_MULW(vd, vs1, vs2); break;
+        case /* 01.100 */12: rv_DIVW(vd, vs1, vs2); break;
+        case /* 01.101 */13: rv_DIVUW(vd, vs1, vs2); break;
+        case /* 01.110 */14: rv_REMW(vd, vs1, vs2); break;
+        case /* 01.111 */15: rv_REMUW(vd, vs1, vs2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
-    /* sign-extend 32-bit result to fill the whole rd */
-    tcg_gen_ext32s_tl(vd, vd);
-
-out:
     if(!rd) tcg_temp_free(vd);
 }
 
@@ -650,7 +800,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
-    TCGv va = imm ? temp_new_rsum(rs, imm) : cpu_gpr[rs];
+    TCGv va = imm ? temp_new_rsum(cpu_gpr[rs], imm) : cpu_gpr[rs];
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
 
     switch(BITFIELD(insn, 14, 12))
@@ -678,7 +828,7 @@ static void rv_STORE(struct DisasContext* dc, uint32_t insn)
            (((int32_t)insn >> 20) & 0x1F);  /* 31:25 and 5 clear bits */
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
-    TCGv va = imm ? temp_new_rsum(rs1, imm) : cpu_gpr[rs1];
+    TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
     TCGv vs = cpu_gpr[rs2];
 
     switch(BITFIELD(insn, 14, 12))
