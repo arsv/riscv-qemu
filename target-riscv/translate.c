@@ -33,9 +33,9 @@ const target_long rv_signbit = ((target_long)1 << (TARGET_LONG_BITS - 1));
    Within qemu, it's an allocated TCGv holding 0, used directly for any read
    access and guarded against writes.
 
-   Most uses of x0 should be implemented with different tcg opcodes
-   (i.e. "mov rd, rs" instead of "or rd, rs, x0") but until that is done having
-   a real register keeps the code simple and uniform, if perhaps suboptimal. */
+   Most insns allocate a throwaway temp TCGv for x0 writes.
+   Short-cut to nop with rd=0 is not always possible since writes to x0
+   still need to generate exceptions whenever other insn fields are wrong. */
 
 static const char* const riscv_regnames[] = {
      "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
@@ -178,12 +178,7 @@ static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
 }
 
 /* Arithmetics with immediate: rd = rs op imm;
-   ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI.
-
-   Writes to x0 are nops -- except if the flags are wrong, in which case
-   exception must be raised regardless of where the results goes.
-   Flags are checked late, so a temp is used instead of x0.
-   TCG optimizer should remove it as dead code anyway. */
+   ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI. */
 
 static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
 {
@@ -316,7 +311,7 @@ static void rv_MULHSU(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_gen_mulu2_tl(resl, resh, pos1, vs2);
     tcg_temp_free(pos1);
 
-    /* negate resl with carry */
+    /* negate resl and add 1 */
     TCGv notresl = tcg_temp_new();
     tcg_gen_xori_tl(notresl, notresl, -1);    /* notresl = ~resl */
     tcg_gen_addi_tl(resl, notresl, 1);        /* resl = ~resl + 1 */
@@ -428,7 +423,10 @@ static void rv_REMU(TCGv vd, TCGv vs1, TCGv vs2)
 
 /* 3-bit func field is not enough to encode all possible funcs
    for OP and OP32 instructions, so two extra bits are spilled
-   into the upper imm field of insn. */
+   into the upper imm field of insn. To simplify switch()es,
+   the bits that matter are squashed back together in the same
+   order they come in insn: amfff, a = arithm, m = multiply,
+   and fff the original funct3 bits. */
 
 static unsigned rv_op_extfunc(uint32_t insn)
 {
@@ -438,9 +436,9 @@ static unsigned rv_op_extfunc(uint32_t insn)
     if(flags & ~((1<<5) | (1<<0)))
         return -1;        /* force default case in switches */
     if(flags & (1<<0))
-        func |= (1<<3);   /* prefix func with mul bit */
+        func |= (1<<3);   /* multiply */
     if(flags & (1<<5))
-        func |= (1<<4);   /* prefix func with arithm bit */
+        func |= (1<<4);   /* arithm */
 
     return func;
 }
@@ -530,7 +528,7 @@ static void rv_SRAW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(vx);
 }
 
-/* XXX: this one should do sign-extension, right? */
+/* XXX: this needs sign-extension for arguments, right? */
 
 static void rv_MULW(TCGv vd, TCGv vs1, TCGv vs2)
 {
