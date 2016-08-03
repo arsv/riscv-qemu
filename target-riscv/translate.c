@@ -801,6 +801,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
         case /* 000 */ 0: tcg_gen_qemu_ld8s(vd, va, memidx); break;
         case /* 001 */ 1: tcg_gen_qemu_ld16s(vd, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_ld32s(vd, va, memidx); break;
+        case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
         case /* 100 */ 4: tcg_gen_qemu_ld8u(vd, va, memidx); break;
         case /* 101 */ 5: tcg_gen_qemu_ld16u(vd, va, memidx); break;
         case /* 110 */ 6: tcg_gen_qemu_ld32u(vd, va, memidx); break;
