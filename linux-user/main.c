@@ -3782,6 +3782,7 @@ void cpu_loop(CPURISCVState *env)
     CPUState *cs = CPU(riscv_env_get_cpu(env));
     int trapnr, gdbsig;
     target_ulong ret;
+    target_siginfo_t info;
 
     for (;;) {
         cpu_exec_start(cs);
@@ -3806,6 +3807,13 @@ void cpu_loop(CPURISCVState *env)
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {
                 env->gpr[xA0] = ret;
             }
+            break;
+        case EXCP_ILLEGAL:
+            info.si_signo = TARGET_SIGILL;
+            info.si_errno = 0;
+            info.si_code = TARGET_ILL_ILLOPN;
+            info._sifields._sigfault._addr = env->pc;
+            queue_signal(env, info.si_signo, &info);
             break;
         default:
             EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
