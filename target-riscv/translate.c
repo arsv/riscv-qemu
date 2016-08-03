@@ -177,6 +177,17 @@ static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
         tcg_gen_shri_tl(vd, vs, shamt);
 }
 
+static void rv_SLTI(TCGv vd, TCGv vs, int32_t imm)
+{
+    tcg_gen_setcondi_tl(TCG_COND_LT,  vd, vs, imm);
+}
+
+static void rv_SLTIU(TCGv vd, TCGv vs, int32_t imm)
+{
+    /* Per spec, imm is signed even in *U case */
+    tcg_gen_setcondi_tl(TCG_COND_LTU, vd, vs, imm);
+}
+
 /* Arithmetics with immediate: rd = rs op imm;
    ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI. */
 
@@ -196,8 +207,8 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
         case /* 100 */ 4: tcg_gen_xori_tl(vd, vs, imm); break;
         case /* 110 */ 6: tcg_gen_ori_tl(vd, vs, imm); break;
         case /* 111 */ 7: tcg_gen_andi_tl(vd, vs, imm); break;
-        case /* 010 */ 2: tcg_gen_setcondi_tl(TCG_COND_LT,  vd, vs, imm); break;
-        case /* 011 */ 3: tcg_gen_setcondi_tl(TCG_COND_LTU, vd, vs, imm); break;
+        case /* 010 */ 2: rv_SLTI(vd, vs, imm); break;
+        case /* 011 */ 3: rv_SLTIU(vd, vs, imm); break;
         case /* 001 */ 1: rv_SLLI(dc, vd, vs, shamt, flags); break;
         case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
@@ -445,6 +456,18 @@ static unsigned rv_op_extfunc(uint32_t insn)
     return func;
 }
 
+/* Too long; didn't fit within the 80c. Set-to less-than(-unsigned). */
+
+static void rv_SLT(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2);
+}
+
+static void rv_SLTU(TCGv vd, TCGv vs1, TCGv vs2)
+{
+    tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2);
+}
+
 /* Register arithmetics: rd = rs1 op rs2
    ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
 
@@ -464,8 +487,8 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
         case /* 00.100 */ 4: tcg_gen_xor_tl(vd, vs1, vs2); break;
         case /* 00.110 */ 6: tcg_gen_or_tl(vd, vs1, vs2); break;
         case /* 00.111 */ 7: tcg_gen_and_tl(vd, vs1, vs2); break;
-        case /* 00.010 */ 2: tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2); break;
-        case /* 00.011 */ 3: tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2); break;
+        case /* 00.010 */ 2: rv_SLT(vd, vs1, vs2); break;
+        case /* 00.011 */ 3: rv_SLTU(vd, vs1, vs2); break;
         case /* 00.001 */ 1: rv_SLL(vd, vs1, vs2); break;
         case /* 00.101 */ 5: rv_SRL(vd, vs1, vs2); break;
         case /* 10.101 */21: rv_SRA(vd, vs1, vs2); break;
