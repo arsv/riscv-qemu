@@ -191,8 +191,7 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
     TCGv vs = cpu_gpr[rs];
 
-    switch(BITFIELD(insn, 14, 12))
-    {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
         case /* 100 */ 4: tcg_gen_xori_tl(vd, vs, imm); break;
         case /* 110 */ 6: tcg_gen_ori_tl(vd, vs, imm); break;
@@ -220,8 +219,7 @@ static void rv_OPIMM32(struct DisasContext* dc, uint32_t insn)
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
     TCGv vs = cpu_gpr[rs];
 
-    switch(BITFIELD(insn, 14, 12))
-    {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
         case /* 001 */ 1: rv_SLLI(dc, vd, vs, shamt, flags); break;
         case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
@@ -259,6 +257,10 @@ static void rv_SLL(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_gen_shl_tl(vd, vs1, shamt);
     tcg_temp_free(shamt);
 }
+
+/* Multiplying tl x tl yields 2tl result. MUL returns the lower tl,
+   MUL*H* variants return higher tl for signed x signed (default),
+   unsigned x unsigned (U) and signed x unsigned (SU) cases. */
 
 static void rv_MUL(TCGv vd, TCGv vs1, TCGv vs2)
 {
@@ -456,8 +458,7 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(rv_op_extfunc(insn))
-    {
+    switch(rv_op_extfunc(insn)) {
         case /* 00.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
         case /* 10.000 */16: tcg_gen_sub_tl(vd, vs1, vs2); break;
         case /* 00.100 */ 4: tcg_gen_xor_tl(vd, vs1, vs2); break;
@@ -621,8 +622,7 @@ static void rv_OP32(struct DisasContext* dc, uint32_t insn)
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(rv_op_extfunc(insn))
-    {
+    switch(rv_op_extfunc(insn)) {
         case /* 00.000 */ 0: rv_ADDW(vd, vs1, vs2); break;
         case /* 10.000 */16: rv_SUBW(vd, vs1, vs2); break;
         case /* 00.001 */ 1: rv_SLLW(vd, vd, vs2); break;
@@ -767,8 +767,7 @@ static void rv_BRANCH(struct DisasContext* dc, uint32_t insn)
     TCGv vs2 = cpu_gpr[rs2];
     TCGLabel* l = gen_new_label();
 
-    switch(BITFIELD(insn, 14, 12))
-    {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_brcond_tl(TCG_COND_NE, vs1, vs2, l); break;
         case /* 001 */ 1: tcg_gen_brcond_tl(TCG_COND_EQ, vs1, vs2, l); break;
         case /* 100 */ 4: tcg_gen_brcond_tl(TCG_COND_GE, vs1, vs2, l); break;
@@ -796,8 +795,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs], imm) : cpu_gpr[rs];
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
 
-    switch(BITFIELD(insn, 14, 12))
-    {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_qemu_ld8s(vd, va, memidx); break;
         case /* 001 */ 1: tcg_gen_qemu_ld16s(vd, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_ld32s(vd, va, memidx); break;
@@ -825,8 +823,7 @@ static void rv_STORE(struct DisasContext* dc, uint32_t insn)
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
     TCGv vs = cpu_gpr[rs2];
 
-    switch(BITFIELD(insn, 14, 12))
-    {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_qemu_st8(vs, va, memidx); break;
         case /* 001 */ 1: tcg_gen_qemu_st16(vs, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
@@ -893,8 +890,7 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
 
 static void decode(struct DisasContext* dc, uint32_t insn)
 {
-    switch(insn & 0x7F)
-    {
+    switch(insn & 0x7F) {
         case /* 0110111 */ 0x37: rv_LUI(dc, insn); break;
         case /* 0010111 */ 0x17: rv_AUIPC(dc, insn); break;
         case /* 1101111 */ 0x6F: rv_JAL(dc, insn); break;
