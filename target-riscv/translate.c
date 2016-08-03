@@ -528,19 +528,14 @@ static void rv_SRAW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(vx);
 }
 
-/* XXX: this needs sign-extension for arguments, right? */
-
 static void rv_MULW(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
-    TCGv vxs1 = temp_new_ext32s(vs1);
-    TCGv vxs2 = temp_new_ext32s(vs2);
 
-    tcg_gen_muls2_tl(vd, sink, vxs1, vxs2);
+    /* no need to sign-extend anything there */
+    tcg_gen_muls2_tl(vd, sink, vs1, vs2);
     tcg_gen_ext32s_tl(vd, vd);
 
-    tcg_temp_free(vxs2);
-    tcg_temp_free(vxs1);
     tcg_temp_free(sink);
 }
 
