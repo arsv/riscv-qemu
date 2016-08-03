@@ -876,8 +876,8 @@ static void rv_MISCMEM(struct DisasContext* dc, uint32_t insn)
 static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
 {
     switch(BITFIELD(insn, 31, 20)) {
-        case 0: gen_exception(dc, EXCP_SYSCALL);
-        case 1: gen_exception(dc, EXCP_ILLEGAL); /* EBREAK, not implemented */
+        case 0: gen_exception(dc, EXCP_SYSCALL); break;
+        case 1: /* EBREAK, not implemented */
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }
