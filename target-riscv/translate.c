@@ -882,18 +882,19 @@ static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
     }
 }
 
-/* Syscalls and CSR ops. These are actuall two completely unrelated
-   instructions sharing a single opcode. */
+/* Syscalls and CSR ops. These are actually two completely unrelated
+   instructions sharing a single opcode.
+
+   CSR handling is relegated to a helper. CSR ops are presumably rare,
+   most are inherently slow anyway, and the code is complex enough to
+   make TCG implementation pointless. */
 
 static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
 {
-    unsigned func = BITFIELD(insn, 14, 12);
-
-    switch(func) {
+    switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: rv_PRIV(dc, insn); return;
         case /* 100 */ 4: gen_exception(dc, EXCP_ILLEGAL); return;
-        /* all other possible values are CRS-related */
-        default: gen_exception(dc, EXCP_ILLEGAL); /* not supported atm  */
+	default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }
 
