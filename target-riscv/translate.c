@@ -894,8 +894,12 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: rv_PRIV(dc, insn); return;
         case /* 100 */ 4: gen_exception(dc, EXCP_ILLEGAL); return;
-	default: gen_exception(dc, EXCP_ILLEGAL);
     }
+
+    /* CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI */
+    TCGv_i32 temp = tcg_const_i32(insn);
+    gen_helper_csr(cpu_env, temp);
+    tcg_temp_free_i32(temp);
 }
 
 /* Instructions are decoded in two jumps: major opcode first,
