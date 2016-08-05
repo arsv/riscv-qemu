@@ -20,9 +20,19 @@ typedef struct DisasContext {
     bool jump;
 } DisasContext;
 
+typedef TCGv_i64 TCGf;
+
 static TCGv_env cpu_env;
 static TCGv cpu_pc;
 static TCGv cpu_gpr[32];
+static TCGv cpu_fpr[32];
+
+/* FIXME: it is wrong to assume sizeof(fpr) == sizeof(gpr), in particular
+   RV32 is likely to have 64-bit floats, but for now the implementation
+   is limited to the easiest case of RV64 w/ 64-bit floats.
+   Doing non-equal gpr/fpr will require careful casting and type selection
+   for the values involved. */
+
 #include "exec/gen-icount.h"
 
 #define BITFIELD(src, end, start) \
@@ -37,11 +47,18 @@ const target_long rv_signbit = ((target_long)1 << (TARGET_LONG_BITS - 1));
    Short-cut to nop with rd=0 is not always possible since writes to x0
    still need to generate exceptions whenever other insn fields are wrong. */
 
-static const char* const riscv_regnames[] = {
+static const char* const riscv_gprnames[] = {
      "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
     " x8",  "x9", "x10", "x11", "x12", "x13", "x14", "x15",
     "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23",
     "x24", "x25", "x26", "x27", "x28", "x29", "x30", "x31",
+};
+
+static const char* const riscv_fprnames[] = {
+     "f0",  "f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",
+    " f8",  "f9", "f10", "f11", "f12", "f13", "f14", "f15",
+    "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23",
+    "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31",
 };
 
 void riscv_translate_init(void)
@@ -63,7 +80,11 @@ void riscv_translate_init(void)
     for(i = 0; i < 32; i++)
         cpu_gpr[i] = tcg_global_mem_new(cpu_env,
                         offsetof(CPURISCVState, gpr[i]),
-                        riscv_regnames[i]);
+                        riscv_gprnames[i]);
+    for(i = 0; i < 32; i++)
+        cpu_fpr[i] = tcg_global_mem_new(cpu_env,
+                        offsetof(CPURISCVState, fpr[i]),
+                        riscv_fprnames[i]);
 }
 
 void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
@@ -902,6 +923,48 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
     tcg_temp_free_i32(temp);
 }
 
+/* Like LOAD but writes to fpr instead of gpr.
+   And f0 is a regular register, not a sink. */
+
+static void rv_LOADFP(struct DisasContext* dc, uint32_t insn)
+{
+    int imm = ((int32_t)insn >> 20);
+    unsigned rd = BITFIELD(insn, 11, 7);
+    unsigned rs = BITFIELD(insn, 19, 15);
+    unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
+
+    TCGv va = imm ? temp_new_rsum(cpu_gpr[rs], imm) : cpu_gpr[rs];
+    TCGv vd = cpu_fpr[rd];
+
+    switch(BITFIELD(insn, 14, 12)) {
+        case /* 010 */ 2: tcg_gen_qemu_ld32u(vd, va, memidx); break;
+        case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+
+    if(imm) tcg_temp_free(va);
+}
+
+static void rv_STOREFP(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned rs1 = BITFIELD(insn, 19, 15);  /* address */
+    unsigned rs2 = BITFIELD(insn, 24, 20);  /* fpr to store */
+    int32_t imm = (insn & 0x1F) |           /* 5 lower bits from insn */
+           (((int32_t)insn >> 20) & 0x1F);  /* 31:25 and 5 clear bits */
+    unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
+
+    TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
+    TCGv vs = cpu_fpr[rs2];
+
+    switch(BITFIELD(insn, 14, 12)) {
+        case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
+        case /* 011 */ 3: tcg_gen_qemu_st64(vs, va, memidx); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+
+    if(imm) tcg_temp_free(va);
+}
+
 /* Instructions are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
    This makes encoding irregularities way easier to handle
@@ -932,6 +995,8 @@ static void decode(struct DisasContext* dc, uint32_t insn)
         case /* 0111011 */ 0x3B: rv_OP32(dc, insn); break;
         case /* 1110011 */ 0x73: rv_SYSTEM(dc, insn); break;
         case /* 0001111 */ 0x0F: rv_MISCMEM(dc, insn); break;
+        case /* 0000111 */ 0x07: rv_LOADFP(dc, insn); break;
+        case /* 0100111 */ 0x27: rv_STOREFP(dc, insn); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }

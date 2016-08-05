@@ -55,7 +55,14 @@
 
 #include "qemu-common.h"
 #include "exec/cpu-defs.h"
+#include "fpu/softfloat.h"
 #include "qom/cpu.h"
+
+/* RISC-V FP registers match integer registers in length and otherwise
+   behave the same with TARGET_LONG_BITS changing between 32 and 64 bits.
+   This is also convenient for store/load and xchg ops, as softfloat types
+   are merely intN_t aliases. */
+typedef float64 target_float;
 
 #define TYPE_RISCV_CPU "riscv-cpu"
 
@@ -78,6 +85,7 @@ typedef struct RISCVCPUClass {
 typedef struct CPURISCVState {
     target_ulong pc;
     target_ulong gpr[32];
+    target_float fpr[32];
 
     CPU_COMMON
 
