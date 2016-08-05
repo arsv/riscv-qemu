@@ -86,6 +86,7 @@ typedef struct CPURISCVState {
     target_ulong pc;
     target_ulong gpr[32];
     target_float fpr[32];
+    float_status fpstatus;
 
     CPU_COMMON
 

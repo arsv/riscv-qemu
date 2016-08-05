@@ -965,6 +965,44 @@ static void rv_STOREFP(struct DisasContext* dc, uint32_t insn)
     if(imm) tcg_temp_free(va);
 }
 
+/* Fused multiply-add: rd = ±(rs1 x rs2 ± rs3); FMADD, FMSUB, FNMADD, FNMSUB.
+   Lots of common code make it easier to funnel all four major opcodes here
+   and do a big switch on size-op combo. */
+
+static void rv_fmadd(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned rd = BITFIELD(insn, 11, 7);
+    //unsigned rm = BITFIELD(insn, 14, 12);
+    unsigned rs1 = BITFIELD(insn, 19, 15);
+    unsigned rs2 = BITFIELD(insn, 24, 20);
+    unsigned rs3 = BITFIELD(insn, 31, 27);
+
+    unsigned opcode =
+            (BITFIELD(insn, 26, 25) << 2) | /* 00=float32, 01=float64 */
+            (BITFIELD(insn, 3, 2));         /* 00=FMADD, ..., 11=FNMSUB */
+
+    TCGv vd = cpu_fpr[rd];
+    TCGv vs1 = cpu_fpr[rs1];
+    TCGv vs2 = cpu_fpr[rs2];
+    TCGv vs3 = cpu_fpr[rs3];
+    //TCGv vm = tcg_const_local_i32(rm);
+    TCGv_ptr ep = cpu_env;
+
+    switch(opcode) {
+        case /* 00.00 */ 0: gen_helper_FMADDS(vd, ep, vs1, vs2, vs3); break;
+        case /* 01.00 */ 4: gen_helper_FMADDD(vd, ep, vs1, vs2, vs3); break;
+        case /* 00.01 */ 1: gen_helper_FMSUBS(vd, ep, vs1, vs2, vs3); break;
+        case /* 01.01 */ 5: gen_helper_FMSUBD(vd, ep, vs1, vs2, vs3); break;
+        case /* 00.10 */ 2: gen_helper_FNMADDS(vd, ep, vs1, vs2, vs3); break;
+        case /* 01.10 */ 6: gen_helper_FNMADDD(vd, ep, vs1, vs2, vs3); break;
+        case /* 00.11 */ 3: gen_helper_FNMSUBS(vd, ep, vs1, vs2, vs3); break;
+        case /* 01.11 */ 7: gen_helper_FNMSUBD(vd, ep, vs1, vs2, vs3); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+
+    //tcg_temp_free_i32(vm);
+}
+
 /* Instructions are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
    This makes encoding irregularities way easier to handle
@@ -997,6 +1035,10 @@ static void decode(struct DisasContext* dc, uint32_t insn)
         case /* 0001111 */ 0x0F: rv_MISCMEM(dc, insn); break;
         case /* 0000111 */ 0x07: rv_LOADFP(dc, insn); break;
         case /* 0100111 */ 0x27: rv_STOREFP(dc, insn); break;
+        case /* 1000011 */ 0x43: rv_fmadd(dc, insn); break;
+        case /* 1000111 */ 0x47: rv_fmadd(dc, insn); break;
+        case /* 1001011 */ 0x4B: rv_fmadd(dc, insn); break;
+        case /* 1001111 */ 0x4F: rv_fmadd(dc, insn); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }

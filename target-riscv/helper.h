@@ -19,3 +19,13 @@
 DEF_HELPER_FLAGS_2(exception, 0, void, env, i32)
 
 DEF_HELPER_FLAGS_2(csr, 0, void, env, i32)
+
+DEF_HELPER_FLAGS_4(FMADDS,  0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FMSUBS,  0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FNMADDS, 0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FNMSUBS, 0, i64, env, i64, i64, i64)
+
+DEF_HELPER_FLAGS_4(FMADDD,  0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FMSUBD,  0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FNMADDD, 0, i64, env, i64, i64, i64)
+DEF_HELPER_FLAGS_4(FNMSUBD, 0, i64, env, i64, i64, i64)
