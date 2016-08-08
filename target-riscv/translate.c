@@ -20,7 +20,7 @@ typedef struct DisasContext {
     bool jump;
 } DisasContext;
 
-typedef TCGv_i64 TCGf;
+#define DC DisasContext* dc
 
 static TCGv_env cpu_env;
 static TCGv cpu_pc;
@@ -972,7 +972,7 @@ static void rv_STOREFP(struct DisasContext* dc, uint32_t insn)
 static void rv_fmadd(struct DisasContext* dc, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
-    //unsigned rm = BITFIELD(insn, 14, 12);
+    unsigned rm = BITFIELD(insn, 14, 12);
     unsigned rs1 = BITFIELD(insn, 19, 15);
     unsigned rs2 = BITFIELD(insn, 24, 20);
     unsigned rs3 = BITFIELD(insn, 31, 27);
@@ -981,26 +981,220 @@ static void rv_fmadd(struct DisasContext* dc, uint32_t insn)
             (BITFIELD(insn, 26, 25) << 2) | /* 00=float32, 01=float64 */
             (BITFIELD(insn, 3, 2));         /* 00=FMADD, ..., 11=FNMSUB */
 
-    TCGv vd = cpu_fpr[rd];
-    TCGv vs1 = cpu_fpr[rs1];
-    TCGv vs2 = cpu_fpr[rs2];
-    TCGv vs3 = cpu_fpr[rs3];
-    //TCGv vm = tcg_const_local_i32(rm);
+    TCGv fd = cpu_fpr[rd];
+    TCGv f1 = cpu_fpr[rs1];
+    TCGv f2 = cpu_fpr[rs2];
+    TCGv f3 = cpu_fpr[rs3];
     TCGv_ptr ep = cpu_env;
+    TCGv_i32 vm = tcg_const_i32(rm);
 
     switch(opcode) {
-        case /* 00.00 */ 0: gen_helper_FMADDS(vd, ep, vs1, vs2, vs3); break;
-        case /* 01.00 */ 4: gen_helper_FMADDD(vd, ep, vs1, vs2, vs3); break;
-        case /* 00.01 */ 1: gen_helper_FMSUBS(vd, ep, vs1, vs2, vs3); break;
-        case /* 01.01 */ 5: gen_helper_FMSUBD(vd, ep, vs1, vs2, vs3); break;
-        case /* 00.10 */ 2: gen_helper_FNMADDS(vd, ep, vs1, vs2, vs3); break;
-        case /* 01.10 */ 6: gen_helper_FNMADDD(vd, ep, vs1, vs2, vs3); break;
-        case /* 00.11 */ 3: gen_helper_FNMSUBS(vd, ep, vs1, vs2, vs3); break;
-        case /* 01.11 */ 7: gen_helper_FNMSUBD(vd, ep, vs1, vs2, vs3); break;
+        case /* 00.00 */ 0: gen_helper_fmadd_s(fd, ep, f1, f2, f3, vm); break;
+        case /* 01.00 */ 4: gen_helper_fmadd_d(fd, ep, f1, f2, f3, vm); break;
+        case /* 00.01 */ 1: gen_helper_fmsub_s(fd, ep, f1, f2, f3, vm); break;
+        case /* 01.01 */ 5: gen_helper_fmsub_d(fd, ep, f1, f2, f3, vm); break;
+        case /* 00.10 */ 2: gen_helper_fnmadd_s(fd, ep, f1, f2, f3, vm); break;
+        case /* 01.10 */ 6: gen_helper_fnmadd_d(fd, ep, f1, f2, f3, vm); break;
+        case /* 00.11 */ 3: gen_helper_fnmsub_s(fd, ep, f1, f2, f3, vm); break;
+        case /* 01.11 */ 7: gen_helper_fnmsub_d(fd, ep, f1, f2, f3, vm); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
-    //tcg_temp_free_i32(vm);
+    tcg_temp_free_i32(vm);
+}
+
+/* FP sign-injection ops are simple bit ops and do not need softfloat;
+   fw is 32 for S and 64 for D variants regardless of register width
+   which is 64 in both cases for RV32D/RV64D.
+
+   The code below depends on tl == i64 and TCGv == TCGv_i64. */
+
+static void rv_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
+{
+    TCGv sign = tcg_temp_new();
+    TCGv base = tcg_temp_new();
+
+    tcg_gen_andi_tl(sign, f2, 1 << (fw - 1));   /* 1<<31, sign bit */
+    tcg_gen_andi_tl(base, f1, (1 << fw) - 1);   /* 1<<32 - 1 = 0xFFFFFFFF */
+    tcg_gen_xor_tl(base, base, sign);           /* clear sign bit in base */
+
+    switch(rm) {
+        case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, 1 << (fw - 1));
+        case /* 000 */ 0: tcg_gen_or_tl(fd, base, sign); break;
+        case /* 010 */ 2: tcg_gen_xor_tl(fd, base, sign); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+
+    tcg_temp_free(base);
+    tcg_temp_free(sign);
+}
+
+static void rv_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: gen_helper_fmin_s(fd, ep, f1, f2); break;
+        case /* 001 */ 1: gen_helper_fmax_s(fd, ep, f1, f2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: gen_helper_fmin_d(fd, ep, f1, f2); break;
+        case /* 001 */ 1: gen_helper_fmax_d(fd, ep, f1, f2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: gen_helper_fle_s(vd, ep, f1, f2); break;
+        case /* 001 */ 1: gen_helper_flt_s(vd, ep, f1, f2); break;
+        case /* 010 */ 2: gen_helper_feq_s(vd, ep, f1, f2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: gen_helper_fle_d(vd, ep, f1, f2); break;
+        case /* 001 */ 1: gen_helper_flt_d(vd, ep, f1, f2); break;
+        case /* 010 */ 2: gen_helper_feq_d(vd, ep, f1, f2); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+/* Float-integer conversion. S/D variants differ in func value *and* use
+   non-intersecting rs2 ranges. It would be possible to merge xs+xd and
+   sx+dx if not for the need to signal invalid func:rs2 combos. */
+
+static void rv_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
+        case /* 00001 */ 1: gen_helper_fcvt_wu_s(vd, ep, f1, vm); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00010 */ 2: gen_helper_fcvt_l_d(vd, ep, f1, vm); break;
+        case /* 00011 */ 3: gen_helper_fcvt_lu_d(vd, ep, f1, vm); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
+        case /* 00001 */ 1: gen_helper_fcvt_s_wu(fd, ep, v1, vm); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00010 */ 2: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
+        case /* 00011 */ 3: gen_helper_fcvt_d_lu(fd, ep, v1, vm); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+/* FMV are just moves, but they share major opcodes with FCLASS. */
+
+static void rv_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
+        case /* 001 */ 1: gen_helper_fclass_s(vd, f1); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: tcg_gen_mov_tl(vd, f1); break;
+        case /* 001 */ 1: gen_helper_fclass_d(vd, f1); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
+{
+    switch(rm) {
+        case /* 000 */ 0: tcg_gen_mov_tl(fd, v1); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+}
+
+static void rv_OPFP(struct DisasContext* dc, uint32_t insn)
+{
+    unsigned rd = BITFIELD(insn, 11, 7);
+    unsigned rm = BITFIELD(insn, 14, 12);
+    unsigned rs1 = BITFIELD(insn, 19, 15);
+    unsigned rs2 = BITFIELD(insn, 24, 20);
+    unsigned func = BITFIELD(insn, 31, 25);
+
+    TCGv_ptr ep = cpu_env;
+
+    TCGv fd = cpu_fpr[rd];
+    TCGv f1 = cpu_fpr[rs1];
+    TCGv f2 = cpu_fpr[rs2];
+
+    TCGv vd = cpu_gpr[rd];
+    TCGv v1 = cpu_gpr[rs1];
+    TCGv_i32 vm = tcg_const_i32(rm);
+    int rs2d = (rs2 << 1) | (insn & 1);
+
+    switch(func) {
+        /* Single-precision */
+        case /* 0000000 */ 0x00: gen_helper_fadd_s(fd, ep, f1, f2, vm); break;
+        case /* 0000100 */ 0x04: gen_helper_fsub_s(fd, ep, f1, f2, vm); break;
+        case /* 0001000 */ 0x08: gen_helper_fmul_s(fd, ep, f1, f2, vm); break;
+        case /* 0001100 */ 0x0C: gen_helper_fdiv_s(fd, ep, f1, f2, vm); break;
+        case /* 0101100 */ 0x2C: gen_helper_fsqrt_s(fd, ep, f2, vm); break;
+        case /* 0010000 */ 0x10: rv_fsgnj(dc, fd, f1, f2, rm, 32); break;
+        case /* 0010100 */ 0x14: rv_fminmax_s(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010000 */ 0x50: rv_fcmp_s(dc, fd, ep, f1, f2, rm); break;
+        /* Double-precision */
+        case /* 0000001 */ 0x01: gen_helper_fadd_d(fd, ep, f1, f2, vm); break;
+        case /* 0000101 */ 0x05: gen_helper_fsub_d(fd, ep, f1, f2, vm); break;
+        case /* 0001001 */ 0x09: gen_helper_fmul_d(fd, ep, f1, f2, vm); break;
+        case /* 0001101 */ 0x0D: gen_helper_fdiv_d(fd, ep, f1, f2, vm); break;
+        case /* 0101101 */ 0x2D: gen_helper_fsqrt_d(fd, ep, f2, vm); break;
+        case /* 0010001 */ 0x11: rv_fsgnj(dc, fd, f1, f2, rm, 64); break;
+        case /* 0010101 */ 0x15: rv_fminmax_d(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010001 */ 0x51: rv_fcmp_d(dc, fd, ep, f1, f2, rm); break;
+        /* Float-integer conversion */
+        case /* 1100000 */ 0x60: rv_fcvt_xs(dc, vd, ep, f1, vm, rs2d); break;
+        case /* 1101000 */ 0x68: rv_fcvt_sx(dc, fd, ep, v1, vm, rs2d); break;
+        case /* 1100001 */ 0x61: rv_fcvt_xd(dc, vd, ep, f1, vm, rs2d); break;
+        case /* 1101001 */ 0x69: rv_fcvt_dx(dc, fd, ep, v1, vm, rs2d); break;
+        /* Float-Integer moves (and fclassify) */
+        case /* 1110000 */ 0x70: rv_fmv_xs(dc, vd, f1, rm); break;
+        case /* 1111000 */ 0x78: rv_fmv_sx(dc, fd, v1, rm); break;
+        case /* 1110001 */ 0x71: rv_fmv_xd(dc, vd, f1, rm); break;
+        case /* 1111001 */ 0x79: rv_fmv_dx(dc, fd, v1, rm); break;
+        default: gen_exception(dc, EXCP_ILLEGAL);
+    }
+
+    tcg_temp_free_i32(vm);
 }
 
 /* Instructions are decoded in two jumps: major opcode first,
@@ -1039,6 +1233,7 @@ static void decode(struct DisasContext* dc, uint32_t insn)
         case /* 1000111 */ 0x47: rv_fmadd(dc, insn); break;
         case /* 1001011 */ 0x4B: rv_fmadd(dc, insn); break;
         case /* 1001111 */ 0x4F: rv_fmadd(dc, insn); break;
+        case /* 1010011 */ 0x53: rv_OPFP(dc, insn); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }
