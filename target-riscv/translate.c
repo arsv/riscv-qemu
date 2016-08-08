@@ -111,18 +111,6 @@ void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
 
 /* All the stuff below this line is gen_intermediate_code() */
 
-static int tblock_max_insns(struct TranslationBlock *tb)
-{
-    int max = tb->cflags & CF_COUNT_MASK;
-
-    if(!max)
-        max = CF_COUNT_MASK;
-    if(max > TCG_MAX_INSNS)
-        max = TCG_MAX_INSNS;
-
-    return max;
-}
-
 static TCGv temp_new_rsum(TCGv vs, int32_t imm)
 {
     TCGv vt = tcg_temp_new();
@@ -1255,6 +1243,21 @@ static void decode(DC, uint32_t insn)
         case /* 1010011 */ 0x53: gen_opfp(dc, insn); break;
         default: gen_illegal(dc);
     }
+}
+
+static int tblock_max_insns(struct TranslationBlock *tb)
+{
+    if(singlestep) /* global -singlestep option; no relation to gdb */
+        return 1;
+
+    int max = tb->cflags & CF_COUNT_MASK;
+
+    if(!max)
+        max = CF_COUNT_MASK;
+    if(max > TCG_MAX_INSNS)
+        max = TCG_MAX_INSNS;
+
+    return max;
 }
 
 void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
