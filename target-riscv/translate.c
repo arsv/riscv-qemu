@@ -14,6 +14,18 @@
 #include "trace-tcg.h"
 #include "exec/log.h"
 
+/* Most functions here get disas context as their first argument.
+   It's always the same one, allocated in gen_intermediate_code()
+   once for each invocation and thus for each TB. RISC-V lacks most
+   features that require DC (delay branches and such) so it only
+   tracks PC of the insn being translated, and jump signal.
+
+   Any PC-relative arithmetics here must use dc->pc, not env->pc from
+   RISCVCPUState structure as that one does not get updated from within
+   a running TB and may be off. Any jumps must update env->pc to the value
+   is it supposed to have at that point and set the jump flag to interrupt
+   the translation loop and end current TB. */
+
 typedef struct DisasContext {
     TranslationBlock *tb;
     target_ulong pc;
@@ -22,22 +34,26 @@ typedef struct DisasContext {
 
 #define DC DisasContext* dc
 
+/* TCG references to CPU registers */
+
 static TCGv_env cpu_env;
 static TCGv cpu_pc;
 static TCGv cpu_gpr[32];
 static TCGv cpu_fpr[32];
 
 /* FIXME: it is wrong to assume sizeof(fpr) == sizeof(gpr), in particular
-   RV32 is likely to have 64-bit floats, but for now the implementation
+   RV32 is likely to have 64-bit floats (RV32D), but for now the implementation
    is limited to the easiest case of RV64 w/ 64-bit floats.
-   Doing non-equal gpr/fpr will require careful casting and type selection
-   for the values involved. */
+
+   For RV32D, TCGv points to TARGET_LONG_BITS (=32) value, a second type
+   will be needed, pointing to TARGET_FLOAT_LONG (=64) value. This is partially
+   done in FP helpers with gpv and fpv. */
 
 #include "exec/gen-icount.h"
 
 #define BITFIELD(src, end, start) \
             (((src) >> start) & ((1 << (end - start + 1)) - 1))
-const target_long rv_signbit = ((target_long)1 << (TARGET_LONG_BITS - 1));
+#define SIGNBIT ((target_long)1 << (TARGET_LONG_BITS - 1))
 
 /* Register x0 is a zero-sink, always reads as 0 and writes there are ignored.
    Within qemu, it's an allocated TCGv holding 0, used directly for any read
@@ -107,14 +123,6 @@ static int tblock_max_insns(struct TranslationBlock *tb)
     return max;
 }
 
-static void gen_exception(DisasContext *dc, unsigned int excp)
-{
-    TCGv_i32 tmp = tcg_const_i32(excp);
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
-    gen_helper_exception(cpu_env, tmp);
-    tcg_temp_free_i32(tmp);
-}
-
 static TCGv temp_new_rsum(TCGv vs, int32_t imm)
 {
     TCGv vt = tcg_temp_new();
@@ -144,10 +152,18 @@ static TCGv temp_new_andi(TCGv vs, target_long mask)
     return vr;
 }
 
+static void gen_exception(DC, unsigned int excp)
+{
+    TCGv_i32 tmp = tcg_const_i32(excp);
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
+    gen_helper_exception(cpu_env, tmp);
+    tcg_temp_free_i32(tmp);
+}
+
 /* Load upper immediate: rd = (imm << 12)
    Since imm is 31:12 in insn, there is no need to shift it. */
 
-static void rv_LUI(struct DisasContext* dc, uint32_t insn)
+static void gen_lui(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     uint32_t uimm = insn & 0xFFFFF000;
@@ -162,7 +178,7 @@ static void rv_LUI(struct DisasContext* dc, uint32_t insn)
 /* Add upper intermediate to pc: rd = pc + (imm << 12)
    Again, no need to shift imm. */
 
-static void rv_AUIPC(struct DisasContext* dc, uint32_t insn)
+static void gen_auipc(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     uint32_t imm = insn & 0xFFFFF000;
@@ -178,8 +194,7 @@ static void rv_AUIPC(struct DisasContext* dc, uint32_t insn)
 
 /* Shift Left/Right Logical/Arithm by Immediate. */
 
-static void rv_SLLI(struct DisasContext* dc, TCGv vd, TCGv vs,
-        unsigned shamt, unsigned flags)
+static void gen_slli(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
     if(flags)
         gen_exception(dc, EXCP_ILLEGAL);
@@ -187,8 +202,7 @@ static void rv_SLLI(struct DisasContext* dc, TCGv vd, TCGv vs,
         tcg_gen_shli_tl(vd, vs, shamt);
 }
 
-static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
-        unsigned shamt, unsigned flags)
+static void gen_srxi(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
     if(flags & ~(1<<5))
         gen_exception(dc, EXCP_ILLEGAL);
@@ -198,12 +212,12 @@ static void rv_SRxI(struct DisasContext* dc, TCGv vd, TCGv vs,
         tcg_gen_shri_tl(vd, vs, shamt);
 }
 
-static void rv_SLTI(TCGv vd, TCGv vs, int32_t imm)
+static void gen_slti(TCGv vd, TCGv vs, int32_t imm)
 {
     tcg_gen_setcondi_tl(TCG_COND_LT,  vd, vs, imm);
 }
 
-static void rv_SLTIU(TCGv vd, TCGv vs, int32_t imm)
+static void gen_sltiu(TCGv vd, TCGv vs, int32_t imm)
 {
     /* Per spec, imm is signed even in *U case */
     tcg_gen_setcondi_tl(TCG_COND_LTU, vd, vs, imm);
@@ -212,7 +226,7 @@ static void rv_SLTIU(TCGv vd, TCGv vs, int32_t imm)
 /* Arithmetics with immediate: rd = rs op imm;
    ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI. */
 
-static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
+static void gen_opimm(DC, uint32_t insn)
 {
     int32_t imm = ((int32_t)insn) >> 20;
     unsigned rs = BITFIELD(insn, 19, 15);
@@ -228,10 +242,10 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
         case /* 100 */ 4: tcg_gen_xori_tl(vd, vs, imm); break;
         case /* 110 */ 6: tcg_gen_ori_tl(vd, vs, imm); break;
         case /* 111 */ 7: tcg_gen_andi_tl(vd, vs, imm); break;
-        case /* 010 */ 2: rv_SLTI(vd, vs, imm); break;
-        case /* 011 */ 3: rv_SLTIU(vd, vs, imm); break;
-        case /* 001 */ 1: rv_SLLI(dc, vd, vs, shamt, flags); break;
-        case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
+        case /* 010 */ 2: gen_slti(vd, vs, imm); break;
+        case /* 011 */ 3: gen_sltiu(vd, vs, imm); break;
+        case /* 001 */ 1: gen_slli(dc, vd, vs, shamt, flags); break;
+        case /* 101 */ 5: gen_srxi(dc, vd, vs, shamt, flags); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
@@ -240,7 +254,7 @@ static void rv_OPIMM(struct DisasContext* dc, uint32_t insn)
 
 /* Like OPIMM but with 32-bit words on RV64; ADDIW, SLLIW, SRLIW, SRAIW */
 
-static void rv_OPIMM32(struct DisasContext* dc, uint32_t insn)
+static void gen_opimm32(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rs = BITFIELD(insn, 19, 15);
@@ -253,8 +267,8 @@ static void rv_OPIMM32(struct DisasContext* dc, uint32_t insn)
 
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
-        case /* 001 */ 1: rv_SLLI(dc, vd, vs, shamt, flags); break;
-        case /* 101 */ 5: rv_SRxI(dc, vd, vs, shamt, flags); break;
+        case /* 001 */ 1: gen_slli(dc, vd, vs, shamt, flags); break;
+        case /* 101 */ 5: gen_srxi(dc, vd, vs, shamt, flags); break;
         default: gen_exception(dc, EXCP_ILLEGAL); goto out;
     }
 
@@ -268,21 +282,21 @@ out:
    RISC-V apparently *ignores* high bits in shift amount register,
    so (v >> 75) == (v >> (75 % 64)) == (v >> 11) */
 
-static void rv_SRL(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_srl(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv shamt = temp_new_andi(vs2, TARGET_LONG_BITS - 1);
     tcg_gen_shr_tl(vd, vs1, shamt);
     tcg_temp_free(shamt);
 }
 
-static void rv_SRA(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_sra(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv shamt = temp_new_andi(vs2, TARGET_LONG_BITS - 1);
     tcg_gen_sar_tl(vd, vs1, shamt);
     tcg_temp_free(shamt);
 }
 
-static void rv_SLL(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_sll(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv shamt = tcg_temp_new();
     tcg_gen_andi_tl(shamt, vs2, TARGET_LONG_BITS - 1);
@@ -294,21 +308,21 @@ static void rv_SLL(TCGv vd, TCGv vs1, TCGv vs2)
    MUL*H* variants return higher tl for signed x signed (default),
    unsigned x unsigned (U) and signed x unsigned (SU) cases. */
 
-static void rv_MUL(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_mul(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
     tcg_gen_muls2_tl(vd, sink, vs1, vs2);
     tcg_temp_free(sink);
 }
 
-static void rv_MULH(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_mulh(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
     tcg_gen_muls2_tl(sink, vd, vs1, vs2);
     tcg_temp_free(sink);
 }
 
-static void rv_MULHU(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_mulhu(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
     tcg_gen_mulu2_tl(sink, vd, vs1, vs2);
@@ -319,13 +333,13 @@ static void rv_MULHU(TCGv vd, TCGv vs1, TCGv vs2)
    Workaround: (-s * u) = -(s * u) = ~(s * u) + 1.
    The final addition is two-word long. */
 
-static void rv_MULHSU(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_mulhsu(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGLabel* skip = gen_new_label();
     TCGLabel* done = gen_new_label();
 
     TCGv sign = tcg_temp_local_new();
-    tcg_gen_andi_tl(sign, vs1, rv_signbit);
+    tcg_gen_andi_tl(sign, vs1, SIGNBIT);
     tcg_gen_brcondi_tl(TCG_COND_NE, sign, 0, skip);
     tcg_temp_free(sign);
 
@@ -395,7 +409,7 @@ static void gen_div_overcheck(TCGLabel* done,
     TCGv c2 = tcg_temp_new();
 
     tcg_gen_setcondi_tl(TCG_COND_EQ, c1, vs2, -1);
-    tcg_gen_setcondi_tl(TCG_COND_EQ, c2, vs1, rv_signbit);
+    tcg_gen_setcondi_tl(TCG_COND_EQ, c2, vs1, SIGNBIT);
     tcg_gen_and_tl(c1, c1, c2);
     tcg_gen_brcondi_tl(TCG_COND_EQ, c1, 0, skip);
 
@@ -413,7 +427,7 @@ static void gen_div_overcheck(TCGLabel* done,
 
 /* Signed/unsigned DIV and REM: vd = vs1 / vs2 */
 
-static void rv_DIV(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_div(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGLabel* done = gen_new_label();
 
@@ -424,7 +438,7 @@ static void rv_DIV(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_DIVU(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_divu(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGLabel* done = gen_new_label();
 
@@ -434,7 +448,7 @@ static void rv_DIVU(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_REM(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_rem(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGLabel* done = gen_new_label();
 
@@ -445,7 +459,7 @@ static void rv_REM(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_REMU(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_remu(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGLabel* done = gen_new_label();
 
@@ -462,7 +476,7 @@ static void rv_REMU(TCGv vd, TCGv vs1, TCGv vs2)
    order they come in insn: amfff, a = arithm, m = multiply,
    and fff the original funct3 bits. */
 
-static unsigned rv_op_extfunc(uint32_t insn)
+static unsigned rvop_extfunc(uint32_t insn)
 {
     unsigned func = BITFIELD(insn, 14, 12); /* 3 bits initially */
     unsigned flags = BITFIELD(insn, 31, 25);
@@ -479,12 +493,12 @@ static unsigned rv_op_extfunc(uint32_t insn)
 
 /* Too long; didn't fit within the 80c. Set-to less-than(-unsigned). */
 
-static void rv_SLT(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_slt(TCGv vd, TCGv vs1, TCGv vs2)
 {
     tcg_gen_setcond_tl(TCG_COND_LT, vd, vs1, vs2);
 }
 
-static void rv_SLTU(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_sltu(TCGv vd, TCGv vs1, TCGv vs2)
 {
     tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2);
 }
@@ -492,7 +506,7 @@ static void rv_SLTU(TCGv vd, TCGv vs1, TCGv vs2)
 /* Register arithmetics: rd = rs1 op rs2
    ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
 
-static void rv_OP(struct DisasContext* dc, uint32_t insn)
+static void gen_op(DC, uint32_t insn)
 {
     unsigned rs2 = BITFIELD(insn, 24, 20);
     unsigned rs1 = BITFIELD(insn, 19, 15);
@@ -502,44 +516,44 @@ static void rv_OP(struct DisasContext* dc, uint32_t insn)
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(rv_op_extfunc(insn)) {
+    switch(rvop_extfunc(insn)) {
         case /* 00.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
         case /* 10.000 */16: tcg_gen_sub_tl(vd, vs1, vs2); break;
         case /* 00.100 */ 4: tcg_gen_xor_tl(vd, vs1, vs2); break;
         case /* 00.110 */ 6: tcg_gen_or_tl(vd, vs1, vs2); break;
         case /* 00.111 */ 7: tcg_gen_and_tl(vd, vs1, vs2); break;
-        case /* 00.010 */ 2: rv_SLT(vd, vs1, vs2); break;
-        case /* 00.011 */ 3: rv_SLTU(vd, vs1, vs2); break;
-        case /* 00.001 */ 1: rv_SLL(vd, vs1, vs2); break;
-        case /* 00.101 */ 5: rv_SRL(vd, vs1, vs2); break;
-        case /* 10.101 */21: rv_SRA(vd, vs1, vs2); break;
-        case /* 01.000 */ 8: rv_MUL(vd, vs1, vs2); break;
-        case /* 01.001 */ 9: rv_MULH(vd, vs1, vs2); break;
-        case /* 01.010 */10: rv_MULHSU(vd, vs1, vs2); break;
-        case /* 01.011 */11: rv_MULHU(vd, vs1, vs2); break;
-        case /* 01.100 */12: rv_DIV(vd, vs1, vs2); break;
-        case /* 01.101 */13: rv_DIVU(vd, vs1, vs2); break;
-        case /* 01.110 */14: rv_REM(vd, vs1, vs2); break;
-        case /* 01.111 */15: rv_REMU(vd, vs1, vs2); break;
+        case /* 00.010 */ 2: gen_slt(vd, vs1, vs2); break;
+        case /* 00.011 */ 3: gen_sltu(vd, vs1, vs2); break;
+        case /* 00.001 */ 1: gen_sll(vd, vs1, vs2); break;
+        case /* 00.101 */ 5: gen_srl(vd, vs1, vs2); break;
+        case /* 10.101 */21: gen_sra(vd, vs1, vs2); break;
+        case /* 01.000 */ 8: gen_mul(vd, vs1, vs2); break;
+        case /* 01.001 */ 9: gen_mulh(vd, vs1, vs2); break;
+        case /* 01.010 */10: gen_mulhsu(vd, vs1, vs2); break;
+        case /* 01.011 */11: gen_mulhu(vd, vs1, vs2); break;
+        case /* 01.100 */12: gen_div(vd, vs1, vs2); break;
+        case /* 01.101 */13: gen_divu(vd, vs1, vs2); break;
+        case /* 01.110 */14: gen_rem(vd, vs1, vs2); break;
+        case /* 01.111 */15: gen_remu(vd, vs1, vs2); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
     if(!rd) tcg_temp_free(vd);
 }
 
-static void rv_ADDW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_addw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     tcg_gen_add_tl(vd, vs1, vs2);
     tcg_gen_ext32s_tl(vd, vd);
 }
 
-static void rv_SUBW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_subw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     tcg_gen_sub_tl(vd, vs1, vs2);
     tcg_gen_ext32s_tl(vd, vd);
 }
 
-static void rv_SLLW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_sllw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv shamt = temp_new_andi(vs2, 31);
 
@@ -549,7 +563,7 @@ static void rv_SLLW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(shamt);
 }
 
-static void rv_SRLW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_srlw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx = temp_new_ext32u(vs1);
     TCGv shamt = temp_new_andi(vs2, 31);
@@ -561,7 +575,7 @@ static void rv_SRLW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(vx);
 }
 
-static void rv_SRAW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_sraw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx = temp_new_ext32s(vs1);
     TCGv shamt = temp_new_andi(vs2, 31);
@@ -573,7 +587,7 @@ static void rv_SRAW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(vx);
 }
 
-static void rv_MULW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_mulw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
 
@@ -584,7 +598,7 @@ static void rv_MULW(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(sink);
 }
 
-static void rv_DIVW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_divw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx1 = temp_new_ext32s(vs1);
     TCGv vx2 = temp_new_ext32s(vs2);
@@ -601,7 +615,7 @@ static void rv_DIVW(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_DIVUW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_divuw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx1 = temp_new_ext32u(vs1);
     TCGv vx2 = temp_new_ext32u(vs2);
@@ -617,7 +631,7 @@ static void rv_DIVUW(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_REMW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_remw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx1 = temp_new_ext32s(vs1);
     TCGv vx2 = temp_new_ext32s(vs2);
@@ -634,7 +648,7 @@ static void rv_REMW(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
-static void rv_REMUW(TCGv vd, TCGv vs1, TCGv vs2)
+static void gen_remuw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv vx1 = temp_new_ext32u(vs1);
     TCGv vx2 = temp_new_ext32u(vs2);
@@ -656,7 +670,7 @@ static void rv_REMUW(TCGv vd, TCGv vs1, TCGv vs2)
    some zero-extend and some do not care at all. So each insn does
    it in its own function. */
 
-static void rv_OP32(struct DisasContext* dc, uint32_t insn)
+static void gen_op32(DC, uint32_t insn)
 {
     unsigned rs2 = BITFIELD(insn, 24, 20);
     unsigned rs1 = BITFIELD(insn, 19, 15);
@@ -666,17 +680,17 @@ static void rv_OP32(struct DisasContext* dc, uint32_t insn)
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];
 
-    switch(rv_op_extfunc(insn)) {
-        case /* 00.000 */ 0: rv_ADDW(vd, vs1, vs2); break;
-        case /* 10.000 */16: rv_SUBW(vd, vs1, vs2); break;
-        case /* 00.001 */ 1: rv_SLLW(vd, vd, vs2); break;
-        case /* 00.101 */ 5: rv_SRLW(vd, vd, vs2); break;
-        case /* 10.101 */21: rv_SRAW(vd, vd, vs2); break;
-        case /* 01.000 */ 8: rv_MULW(vd, vs1, vs2); break;
-        case /* 01.100 */12: rv_DIVW(vd, vs1, vs2); break;
-        case /* 01.101 */13: rv_DIVUW(vd, vs1, vs2); break;
-        case /* 01.110 */14: rv_REMW(vd, vs1, vs2); break;
-        case /* 01.111 */15: rv_REMUW(vd, vs1, vs2); break;
+    switch(rvop_extfunc(insn)) {
+        case /* 00.000 */ 0: gen_addw(vd, vs1, vs2); break;
+        case /* 10.000 */16: gen_subw(vd, vs1, vs2); break;
+        case /* 00.001 */ 1: gen_sllw(vd, vd, vs2); break;
+        case /* 00.101 */ 5: gen_srlw(vd, vd, vs2); break;
+        case /* 10.101 */21: gen_sraw(vd, vd, vs2); break;
+        case /* 01.000 */ 8: gen_mulw(vd, vs1, vs2); break;
+        case /* 01.100 */12: gen_divw(vd, vs1, vs2); break;
+        case /* 01.101 */13: gen_divuw(vd, vs1, vs2); break;
+        case /* 01.110 */14: gen_remw(vd, vs1, vs2); break;
+        case /* 01.111 */15: gen_remuw(vd, vs1, vs2); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
@@ -705,7 +719,7 @@ static void rv_OP32(struct DisasContext* dc, uint32_t insn)
    With extension C support enabled, JAL never generates any
    exceptions at all. */
 
-static void rv_JAL(struct DisasContext* dc, uint32_t insn)
+static void gen_jal(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     uint32_t imm =
@@ -738,7 +752,7 @@ static void rv_JAL(struct DisasContext* dc, uint32_t insn)
 
    PC is again assumed to be pre-aligned. */
 
-static void rv_JALR(struct DisasContext* dc, uint32_t insn)
+static void gen_jalr(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rs = BITFIELD(insn, 19, 15);
@@ -792,7 +806,7 @@ static void rv_JALR(struct DisasContext* dc, uint32_t insn)
 
    See JAL/JALR comments on target address (mis-)alignment handling. */
 
-static void rv_BRANCH(struct DisasContext* dc, uint32_t insn)
+static void gen_branch(DC, uint32_t insn)
 {
     unsigned rs1 = BITFIELD(insn, 19, 15);
     unsigned rs2 = BITFIELD(insn, 24, 20);
@@ -829,7 +843,7 @@ static void rv_BRANCH(struct DisasContext* dc, uint32_t insn)
 
 /* Memory load: rd = [rs + imm]; LB, LH, LW, LD, LBU, LHU */
 
-static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
+static void gen_load(DC, uint32_t insn)
 {
     int32_t imm = ((int32_t)insn) >> 20;
     unsigned rs = BITFIELD(insn, 19, 15);
@@ -856,7 +870,7 @@ static void rv_LOAD(struct DisasContext* dc, uint32_t insn)
 
 /* Memory store: [rs1 + imm] = rs2; SB, SH, SW, SD. */
 
-static void rv_STORE(struct DisasContext* dc, uint32_t insn)
+static void gen_store(DC, uint32_t insn)
 {
     unsigned rs1 = BITFIELD(insn, 19, 15);  /* address */
     unsigned rs2 = BITFIELD(insn, 24, 20);  /* data to store */
@@ -881,7 +895,7 @@ static void rv_STORE(struct DisasContext* dc, uint32_t insn)
 /* Memory FENCE and FENCE.I with i-cache flush.
    No-ops for now; rd, rs and imm ignored as per spec. */
 
-static void rv_MISCMEM(struct DisasContext* dc, uint32_t insn)
+static void gen_miscmem(DC, uint32_t insn)
 {
     switch(BITFIELD(insn, 14, 12))
     {
@@ -894,7 +908,7 @@ static void rv_MISCMEM(struct DisasContext* dc, uint32_t insn)
 
 /* Privileged insns, plus ECALL and EBREAK which may be used in U-level. */
 
-static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
+static void gen_priv(DC, uint32_t insn)
 {
     switch(BITFIELD(insn, 31, 20)) {
         case 0: gen_exception(dc, EXCP_SYSCALL); break;
@@ -910,10 +924,10 @@ static void rv_PRIV(struct DisasContext* dc, uint32_t insn)
    most are inherently slow anyway, and the code is complex enough to
    make TCG implementation pointless. */
 
-static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
+static void gen_system(DC, uint32_t insn)
 {
     switch(BITFIELD(insn, 14, 12)) {
-        case /* 000 */ 0: rv_PRIV(dc, insn); return;
+        case /* 000 */ 0: gen_priv(dc, insn); return;
         case /* 100 */ 4: gen_exception(dc, EXCP_ILLEGAL); return;
     }
 
@@ -926,7 +940,7 @@ static void rv_SYSTEM(struct DisasContext* dc, uint32_t insn)
 /* Like LOAD but writes to fpr instead of gpr.
    And f0 is a regular register, not a sink. */
 
-static void rv_LOADFP(struct DisasContext* dc, uint32_t insn)
+static void gen_loadfp(DC, uint32_t insn)
 {
     int imm = ((int32_t)insn >> 20);
     unsigned rd = BITFIELD(insn, 11, 7);
@@ -945,7 +959,7 @@ static void rv_LOADFP(struct DisasContext* dc, uint32_t insn)
     if(imm) tcg_temp_free(va);
 }
 
-static void rv_STOREFP(struct DisasContext* dc, uint32_t insn)
+static void gen_storefp(DC, uint32_t insn)
 {
     unsigned rs1 = BITFIELD(insn, 19, 15);  /* address */
     unsigned rs2 = BITFIELD(insn, 24, 20);  /* fpr to store */
@@ -969,7 +983,7 @@ static void rv_STOREFP(struct DisasContext* dc, uint32_t insn)
    Lots of common code make it easier to funnel all four major opcodes here
    and do a big switch on size-op combo. */
 
-static void rv_fmadd(struct DisasContext* dc, uint32_t insn)
+static void gen_fmadd(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rm = BITFIELD(insn, 14, 12);
@@ -1009,7 +1023,7 @@ static void rv_fmadd(struct DisasContext* dc, uint32_t insn)
 
    The code below depends on tl == i64 and TCGv == TCGv_i64. */
 
-static void rv_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
+static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
 {
     TCGv sign = tcg_temp_new();
     TCGv base = tcg_temp_new();
@@ -1029,7 +1043,7 @@ static void rv_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
     tcg_temp_free(sign);
 }
 
-static void rv_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_s(fd, ep, f1, f2); break;
@@ -1038,7 +1052,7 @@ static void rv_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void rv_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_d(fd, ep, f1, f2); break;
@@ -1047,7 +1061,7 @@ static void rv_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void rv_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fle_s(vd, ep, f1, f2); break;
@@ -1057,7 +1071,7 @@ static void rv_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void rv_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fle_d(vd, ep, f1, f2); break;
@@ -1071,7 +1085,7 @@ static void rv_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
    non-intersecting rs2 ranges. It would be possible to merge xs+xd and
    sx+dx if not for the need to signal invalid func:rs2 combos. */
 
-static void rv_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
@@ -1080,7 +1094,7 @@ static void rv_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void rv_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00010 */ 2: gen_helper_fcvt_l_d(vd, ep, f1, vm); break;
@@ -1089,7 +1103,7 @@ static void rv_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void rv_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
@@ -1098,7 +1112,7 @@ static void rv_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void rv_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00010 */ 2: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
@@ -1109,7 +1123,7 @@ static void rv_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 
 /* FMV are just moves, but they share major opcodes with FCLASS. */
 
-static void rv_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
+static void gen_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
@@ -1118,7 +1132,7 @@ static void rv_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
     }
 }
 
-static void rv_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
+static void gen_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(vd, f1); break;
@@ -1127,7 +1141,7 @@ static void rv_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
     }
 }
 
-static void rv_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
+static void gen_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
@@ -1135,7 +1149,7 @@ static void rv_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
     }
 }
 
-static void rv_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
+static void gen_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(fd, v1); break;
@@ -1143,7 +1157,7 @@ static void rv_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
     }
 }
 
-static void rv_OPFP(struct DisasContext* dc, uint32_t insn)
+static void gen_opfp(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rm = BITFIELD(insn, 14, 12);
@@ -1169,28 +1183,28 @@ static void rv_OPFP(struct DisasContext* dc, uint32_t insn)
         case /* 0001000 */ 0x08: gen_helper_fmul_s(fd, ep, f1, f2, vm); break;
         case /* 0001100 */ 0x0C: gen_helper_fdiv_s(fd, ep, f1, f2, vm); break;
         case /* 0101100 */ 0x2C: gen_helper_fsqrt_s(fd, ep, f2, vm); break;
-        case /* 0010000 */ 0x10: rv_fsgnj(dc, fd, f1, f2, rm, 32); break;
-        case /* 0010100 */ 0x14: rv_fminmax_s(dc, fd, ep, f1, f2, rm); break;
-        case /* 1010000 */ 0x50: rv_fcmp_s(dc, fd, ep, f1, f2, rm); break;
+        case /* 0010000 */ 0x10: gen_fsgnj(dc, fd, f1, f2, rm, 32); break;
+        case /* 0010100 */ 0x14: gen_fminmax_s(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010000 */ 0x50: gen_fcmp_s(dc, fd, ep, f1, f2, rm); break;
         /* Double-precision */
         case /* 0000001 */ 0x01: gen_helper_fadd_d(fd, ep, f1, f2, vm); break;
         case /* 0000101 */ 0x05: gen_helper_fsub_d(fd, ep, f1, f2, vm); break;
         case /* 0001001 */ 0x09: gen_helper_fmul_d(fd, ep, f1, f2, vm); break;
         case /* 0001101 */ 0x0D: gen_helper_fdiv_d(fd, ep, f1, f2, vm); break;
         case /* 0101101 */ 0x2D: gen_helper_fsqrt_d(fd, ep, f2, vm); break;
-        case /* 0010001 */ 0x11: rv_fsgnj(dc, fd, f1, f2, rm, 64); break;
-        case /* 0010101 */ 0x15: rv_fminmax_d(dc, fd, ep, f1, f2, rm); break;
-        case /* 1010001 */ 0x51: rv_fcmp_d(dc, fd, ep, f1, f2, rm); break;
+        case /* 0010001 */ 0x11: gen_fsgnj(dc, fd, f1, f2, rm, 64); break;
+        case /* 0010101 */ 0x15: gen_fminmax_d(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010001 */ 0x51: gen_fcmp_d(dc, fd, ep, f1, f2, rm); break;
         /* Float-integer conversion */
-        case /* 1100000 */ 0x60: rv_fcvt_xs(dc, vd, ep, f1, vm, rs2d); break;
-        case /* 1101000 */ 0x68: rv_fcvt_sx(dc, fd, ep, v1, vm, rs2d); break;
-        case /* 1100001 */ 0x61: rv_fcvt_xd(dc, vd, ep, f1, vm, rs2d); break;
-        case /* 1101001 */ 0x69: rv_fcvt_dx(dc, fd, ep, v1, vm, rs2d); break;
+        case /* 1100000 */ 0x60: gen_fcvt_xs(dc, vd, ep, f1, vm, rs2d); break;
+        case /* 1101000 */ 0x68: gen_fcvt_sx(dc, fd, ep, v1, vm, rs2d); break;
+        case /* 1100001 */ 0x61: gen_fcvt_xd(dc, vd, ep, f1, vm, rs2d); break;
+        case /* 1101001 */ 0x69: gen_fcvt_dx(dc, fd, ep, v1, vm, rs2d); break;
         /* Float-Integer moves (and fclassify) */
-        case /* 1110000 */ 0x70: rv_fmv_xs(dc, vd, f1, rm); break;
-        case /* 1111000 */ 0x78: rv_fmv_sx(dc, fd, v1, rm); break;
-        case /* 1110001 */ 0x71: rv_fmv_xd(dc, vd, f1, rm); break;
-        case /* 1111001 */ 0x79: rv_fmv_dx(dc, fd, v1, rm); break;
+        case /* 1110000 */ 0x70: gen_fmv_xs(dc, vd, f1, rm); break;
+        case /* 1111000 */ 0x78: gen_fmv_sx(dc, fd, v1, rm); break;
+        case /* 1110001 */ 0x71: gen_fmv_xd(dc, vd, f1, rm); break;
+        case /* 1111001 */ 0x79: gen_fmv_dx(dc, fd, v1, rm); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 
@@ -1211,29 +1225,29 @@ static void rv_OPFP(struct DisasContext* dc, uint32_t insn)
    does not add to readability, and makes checking against
    ISA listings way harder than it should be. */
 
-static void decode(struct DisasContext* dc, uint32_t insn)
+static void decode(DC, uint32_t insn)
 {
     switch(insn & 0x7F) {
-        case /* 0110111 */ 0x37: rv_LUI(dc, insn); break;
-        case /* 0010111 */ 0x17: rv_AUIPC(dc, insn); break;
-        case /* 1101111 */ 0x6F: rv_JAL(dc, insn); break;
-        case /* 1100111 */ 0x67: rv_JALR(dc, insn); break;
-        case /* 1100011 */ 0x63: rv_BRANCH(dc, insn); break;
-        case /* 0000011 */ 0x03: rv_LOAD(dc, insn); break;
-        case /* 0100011 */ 0x23: rv_STORE(dc, insn); break;
-        case /* 0010011 */ 0x13: rv_OPIMM(dc, insn); break;
-        case /* 0011011 */ 0x1B: rv_OPIMM32(dc, insn); break;
-        case /* 0110011 */ 0x33: rv_OP(dc, insn); break;
-        case /* 0111011 */ 0x3B: rv_OP32(dc, insn); break;
-        case /* 1110011 */ 0x73: rv_SYSTEM(dc, insn); break;
-        case /* 0001111 */ 0x0F: rv_MISCMEM(dc, insn); break;
-        case /* 0000111 */ 0x07: rv_LOADFP(dc, insn); break;
-        case /* 0100111 */ 0x27: rv_STOREFP(dc, insn); break;
-        case /* 1000011 */ 0x43: rv_fmadd(dc, insn); break;
-        case /* 1000111 */ 0x47: rv_fmadd(dc, insn); break;
-        case /* 1001011 */ 0x4B: rv_fmadd(dc, insn); break;
-        case /* 1001111 */ 0x4F: rv_fmadd(dc, insn); break;
-        case /* 1010011 */ 0x53: rv_OPFP(dc, insn); break;
+        case /* 0110111 */ 0x37: gen_lui(dc, insn); break;
+        case /* 0010111 */ 0x17: gen_auipc(dc, insn); break;
+        case /* 1101111 */ 0x6F: gen_jal(dc, insn); break;
+        case /* 1100111 */ 0x67: gen_jalr(dc, insn); break;
+        case /* 1100011 */ 0x63: gen_branch(dc, insn); break;
+        case /* 0000011 */ 0x03: gen_load(dc, insn); break;
+        case /* 0100011 */ 0x23: gen_store(dc, insn); break;
+        case /* 0010011 */ 0x13: gen_opimm(dc, insn); break;
+        case /* 0011011 */ 0x1B: gen_opimm32(dc, insn); break;
+        case /* 0110011 */ 0x33: gen_op(dc, insn); break;
+        case /* 0111011 */ 0x3B: gen_op32(dc, insn); break;
+        case /* 1110011 */ 0x73: gen_system(dc, insn); break;
+        case /* 0001111 */ 0x0F: gen_miscmem(dc, insn); break;
+        case /* 0000111 */ 0x07: gen_loadfp(dc, insn); break;
+        case /* 0100111 */ 0x27: gen_storefp(dc, insn); break;
+        case /* 1000011 */ 0x43: gen_fmadd(dc, insn); break;
+        case /* 1000111 */ 0x47: gen_fmadd(dc, insn); break;
+        case /* 1001011 */ 0x4B: gen_fmadd(dc, insn); break;
+        case /* 1001111 */ 0x4F: gen_fmadd(dc, insn); break;
+        case /* 1010011 */ 0x53: gen_opfp(dc, insn); break;
         default: gen_exception(dc, EXCP_ILLEGAL);
     }
 }
