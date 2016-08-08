@@ -160,6 +160,11 @@ static void gen_exception(DC, unsigned int excp)
     tcg_temp_free_i32(tmp);
 }
 
+static void gen_illegal(DC)
+{
+    gen_exception(dc, EXCP_ILLEGAL);
+}
+
 /* Load upper immediate: rd = (imm << 12)
    Since imm is 31:12 in insn, there is no need to shift it. */
 
@@ -197,7 +202,7 @@ static void gen_auipc(DC, uint32_t insn)
 static void gen_slli(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
     if(flags)
-        gen_exception(dc, EXCP_ILLEGAL);
+        gen_illegal(dc);
     else
         tcg_gen_shli_tl(vd, vs, shamt);
 }
@@ -205,7 +210,7 @@ static void gen_slli(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 static void gen_srxi(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
     if(flags & ~(1<<5))
-        gen_exception(dc, EXCP_ILLEGAL);
+        gen_illegal(dc);
     else if(flags & (1<<5))
         tcg_gen_sari_tl(vd, vs, shamt);
     else
@@ -246,7 +251,7 @@ static void gen_opimm(DC, uint32_t insn)
         case /* 011 */ 3: gen_sltiu(vd, vs, imm); break;
         case /* 001 */ 1: gen_slli(dc, vd, vs, shamt, flags); break;
         case /* 101 */ 5: gen_srxi(dc, vd, vs, shamt, flags); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(!rd) tcg_temp_free(vd);
@@ -269,7 +274,7 @@ static void gen_opimm32(DC, uint32_t insn)
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
         case /* 001 */ 1: gen_slli(dc, vd, vs, shamt, flags); break;
         case /* 101 */ 5: gen_srxi(dc, vd, vs, shamt, flags); break;
-        default: gen_exception(dc, EXCP_ILLEGAL); goto out;
+        default: gen_illegal(dc); goto out;
     }
 
     tcg_gen_ext32s_tl(vd, vd);
@@ -535,7 +540,7 @@ static void gen_op(DC, uint32_t insn)
         case /* 01.101 */13: gen_divu(vd, vs1, vs2); break;
         case /* 01.110 */14: gen_rem(vd, vs1, vs2); break;
         case /* 01.111 */15: gen_remu(vd, vs1, vs2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(!rd) tcg_temp_free(vd);
@@ -691,7 +696,7 @@ static void gen_op32(DC, uint32_t insn)
         case /* 01.101 */13: gen_divuw(vd, vs1, vs2); break;
         case /* 01.110 */14: gen_remw(vd, vs1, vs2); break;
         case /* 01.111 */15: gen_remuw(vd, vs1, vs2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(!rd) tcg_temp_free(vd);
@@ -729,7 +734,7 @@ static void gen_jal(DC, uint32_t insn)
             (BITFIELD(insn, 30, 21) << 1);
 
     if(imm % 3) {
-        gen_exception(dc, EXCP_ILLEGAL);
+        gen_illegal(dc);
         return;
     }
 
@@ -779,7 +784,7 @@ static void gen_jalr(DC, uint32_t insn)
 
     tcg_gen_andi_tl(vx, va, -3); /* mask out two lower bits of va */
     tcg_gen_brcond_tl(TCG_COND_EQ, vx, va, skip);
-    gen_exception(dc, EXCP_ILLEGAL); /* should be misalignment */
+    gen_illegal(dc); /* should be misalignment */
 
     gen_set_label(skip);
 
@@ -817,7 +822,7 @@ static void gen_branch(DC, uint32_t insn)
             (((((int32_t)insn) >> 30) & 1) << 12);  /* 12, sign bit */
 
     if(imm % 3) {
-        gen_exception(dc, EXCP_ILLEGAL);
+        gen_illegal(dc);
         return;
     }
 
@@ -832,7 +837,7 @@ static void gen_branch(DC, uint32_t insn)
         case /* 101 */ 5: tcg_gen_brcond_tl(TCG_COND_LT, vs1, vs2, l); break;
         case /* 110 */ 6: tcg_gen_brcond_tl(TCG_COND_GEU, vs1, vs2, l); break;
         case /* 111 */ 7: tcg_gen_brcond_tl(TCG_COND_LTU, vs1, vs2, l); break;
-        default: gen_exception(dc, EXCP_ILLEGAL); return;
+        default: gen_illegal(dc); return;
     }
 
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
@@ -861,7 +866,7 @@ static void gen_load(DC, uint32_t insn)
         case /* 100 */ 4: tcg_gen_qemu_ld8u(vd, va, memidx); break;
         case /* 101 */ 5: tcg_gen_qemu_ld16u(vd, va, memidx); break;
         case /* 110 */ 6: tcg_gen_qemu_ld32u(vd, va, memidx); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(!rd) tcg_temp_free(vd);
@@ -886,7 +891,7 @@ static void gen_store(DC, uint32_t insn)
         case /* 001 */ 1: tcg_gen_qemu_st16(vs, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
         case /* 011 */ 3: tcg_gen_qemu_st64(vs, va, memidx); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(imm) tcg_temp_free(va);
@@ -902,7 +907,7 @@ static void gen_miscmem(DC, uint32_t insn)
         case 0: /* FENCE */
         case 1: /* FENCE.I */
             break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -913,7 +918,7 @@ static void gen_priv(DC, uint32_t insn)
     switch(BITFIELD(insn, 31, 20)) {
         case 0: gen_exception(dc, EXCP_SYSCALL); break;
         case 1: /* EBREAK, not implemented */
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -928,7 +933,7 @@ static void gen_system(DC, uint32_t insn)
 {
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: gen_priv(dc, insn); return;
-        case /* 100 */ 4: gen_exception(dc, EXCP_ILLEGAL); return;
+        case /* 100 */ 4: gen_illegal(dc); return;
     }
 
     /* CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI */
@@ -953,7 +958,7 @@ static void gen_loadfp(DC, uint32_t insn)
     switch(BITFIELD(insn, 14, 12)) {
         case /* 010 */ 2: tcg_gen_qemu_ld32u(vd, va, memidx); break;
         case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(imm) tcg_temp_free(va);
@@ -973,7 +978,7 @@ static void gen_storefp(DC, uint32_t insn)
     switch(BITFIELD(insn, 14, 12)) {
         case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
         case /* 011 */ 3: tcg_gen_qemu_st64(vs, va, memidx); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     if(imm) tcg_temp_free(va);
@@ -1011,7 +1016,7 @@ static void gen_fmadd(DC, uint32_t insn)
         case /* 01.10 */ 6: gen_helper_fnmadd_d(fd, ep, f1, f2, f3, vm); break;
         case /* 00.11 */ 3: gen_helper_fnmsub_s(fd, ep, f1, f2, f3, vm); break;
         case /* 01.11 */ 7: gen_helper_fnmsub_d(fd, ep, f1, f2, f3, vm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     tcg_temp_free_i32(vm);
@@ -1036,7 +1041,7 @@ static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
         case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, 1 << (fw - 1));
         case /* 000 */ 0: tcg_gen_or_tl(fd, base, sign); break;
         case /* 010 */ 2: tcg_gen_xor_tl(fd, base, sign); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     tcg_temp_free(base);
@@ -1048,7 +1053,7 @@ static void gen_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_s(fd, ep, f1, f2); break;
         case /* 001 */ 1: gen_helper_fmax_s(fd, ep, f1, f2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1057,7 +1062,7 @@ static void gen_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_d(fd, ep, f1, f2); break;
         case /* 001 */ 1: gen_helper_fmax_d(fd, ep, f1, f2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1067,7 +1072,7 @@ static void gen_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
         case /* 000 */ 0: gen_helper_fle_s(vd, ep, f1, f2); break;
         case /* 001 */ 1: gen_helper_flt_s(vd, ep, f1, f2); break;
         case /* 010 */ 2: gen_helper_feq_s(vd, ep, f1, f2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1077,7 +1082,7 @@ static void gen_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
         case /* 000 */ 0: gen_helper_fle_d(vd, ep, f1, f2); break;
         case /* 001 */ 1: gen_helper_flt_d(vd, ep, f1, f2); break;
         case /* 010 */ 2: gen_helper_feq_d(vd, ep, f1, f2); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1090,7 +1095,7 @@ static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_wu_s(vd, ep, f1, vm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1099,7 +1104,7 @@ static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00010 */ 2: gen_helper_fcvt_l_d(vd, ep, f1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_lu_d(vd, ep, f1, vm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1108,7 +1113,7 @@ static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_s_wu(fd, ep, v1, vm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1117,7 +1122,7 @@ static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00010 */ 2: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_d_lu(fd, ep, v1, vm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1128,7 +1133,7 @@ static void gen_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
         case /* 001 */ 1: gen_helper_fclass_s(vd, f1); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1137,7 +1142,7 @@ static void gen_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(vd, f1); break;
         case /* 001 */ 1: gen_helper_fclass_d(vd, f1); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1145,7 +1150,7 @@ static void gen_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1153,7 +1158,7 @@ static void gen_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(fd, v1); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
@@ -1205,7 +1210,7 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 1111000 */ 0x78: gen_fmv_sx(dc, fd, v1, rm); break;
         case /* 1110001 */ 0x71: gen_fmv_xd(dc, vd, f1, rm); break;
         case /* 1111001 */ 0x79: gen_fmv_dx(dc, fd, v1, rm); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 
     tcg_temp_free_i32(vm);
@@ -1248,7 +1253,7 @@ static void decode(DC, uint32_t insn)
         case /* 1001011 */ 0x4B: gen_fmadd(dc, insn); break;
         case /* 1001111 */ 0x4F: gen_fmadd(dc, insn); break;
         case /* 1010011 */ 0x53: gen_opfp(dc, insn); break;
-        default: gen_exception(dc, EXCP_ILLEGAL);
+        default: gen_illegal(dc);
     }
 }
 
