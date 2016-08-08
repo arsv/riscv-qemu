@@ -270,7 +270,7 @@ static bool float32_is_quiet_nan_(float32 a)
     return ((uint32_t)(a << 1) >= 0xFF800000);
 }
 
-/* FCLASS helpers. The "functions" below are short inline bit tests. */
+/* FCLASS helpers. The "functions" it calls are all short inline bit tests. */
 
 gpv HELPER(fclass_s)(fpv a)
 {
