@@ -107,6 +107,10 @@ static void riscv_cpu_class_init(ObjectClass *oc, void *data)
     cc->dump_state = riscv_cpu_dump_state;
     cc->set_pc = riscv_cpu_set_pc;
 
+    cc->gdb_num_core_regs = 32 + 1 + 32; /* gpr, pc, fpr */
+    cc->gdb_read_register = riscv_cpu_gdb_read_register;
+    cc->gdb_write_register = riscv_cpu_gdb_write_register;
+
     /* Reason: riscv_cpu_init() calls cpu_exec_init(), which saves
        the object in cpus -> dangling pointer after final object_unref(). */
     dc->cannot_destroy_with_object_finalize_yet = true;

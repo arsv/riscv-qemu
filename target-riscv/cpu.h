@@ -116,6 +116,9 @@ int cpu_riscv_signal_handler(int host_signum, void *pinfo, void *puc);
 void riscv_cpu_dump_state(CPUState *cs,
         FILE *f, fprintf_function cpu_fprintf, int flags);
 
+int riscv_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
+int riscv_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
+
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))
 #define cpu_signal_handler cpu_riscv_signal_handler

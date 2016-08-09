@@ -30,6 +30,7 @@ typedef struct DisasContext {
     TranslationBlock *tb;
     target_ulong pc;
     bool jump;
+    bool step;
 } DisasContext;
 
 #define DC DisasContext* dc
@@ -151,6 +152,12 @@ static void gen_exception(DC, unsigned int excp)
 static void gen_illegal(DC)
 {
     gen_exception(dc, EXCP_ILLEGAL);
+}
+
+static void gen_steppoint(DC)
+{
+    if(dc->step)
+        gen_exception(dc, EXCP_DEBUG);
 }
 
 /* Load upper immediate: rd = (imm << 12)
@@ -730,6 +737,7 @@ static void gen_jal(DC, uint32_t insn)
         tcg_gen_movi_tl(cpu_gpr[rd], dc->pc + 4);
 
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
+    gen_steppoint(dc);
     tcg_gen_exit_tb(0);
 
     dc->jump = true;
@@ -778,6 +786,7 @@ static void gen_jalr(DC, uint32_t insn)
 
     /* We're clear, set PC */
     tcg_gen_add_tl(cpu_pc, cpu_pc, va);
+    gen_steppoint(dc);
     tcg_gen_exit_tb(0);
     dc->jump = true;
 
@@ -829,6 +838,7 @@ static void gen_branch(DC, uint32_t insn)
     }
 
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
+    gen_steppoint(dc);
     tcg_gen_exit_tb(0);
 
     gen_set_label(l);
@@ -899,12 +909,16 @@ static void gen_miscmem(DC, uint32_t insn)
     }
 }
 
-/* Privileged insns, plus ECALL and EBREAK which may be used in U-level. */
+static void gen_ecall(DC)
+{
+    gen_exception(dc, EXCP_SYSCALL);
+    dc->jump = true;
+}
 
 static void gen_priv(DC, uint32_t insn)
 {
     switch(BITFIELD(insn, 31, 20)) {
-        case 0: gen_exception(dc, EXCP_SYSCALL); break;
+        case 0: gen_ecall(dc); break;
         case 1: /* EBREAK, not implemented */
         default: gen_illegal(dc);
     }
@@ -1245,6 +1259,12 @@ static void gen_one_insn(DC, uint32_t insn)
     }
 }
 
+static void gen_breakpoint(DC)
+{
+    gen_exception(dc, EXCP_DEBUG);
+    dc->jump = true;
+}
+
 static int tblock_max_insns(struct TranslationBlock *tb)
 {
     if(singlestep) /* global -singlestep option; no relation to gdb */
@@ -1263,6 +1283,8 @@ static int tblock_max_insns(struct TranslationBlock *tb)
 void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 {
     RISCVCPU *cpu = riscv_env_get_cpu(env);
+    CPUState *cs = CPU(cpu);
+
     struct DisasContext ctx, *dc = &ctx;
     int num_insns = 0;
     int max_insns = tblock_max_insns(tb);
@@ -1272,11 +1294,15 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
     dc->tb = tb;
     dc->pc = tb->pc;
     dc->jump = false;
+    dc->step = cs->singlestep_enabled;
 
     gen_tb_start(tb);
 
     do {
         tcg_gen_insn_start(dc->pc);
+
+        if(unlikely(cpu_breakpoint_test(cs, dc->pc, BP_ANY)))
+            gen_breakpoint(dc);
 
         /* Assuming 4-byte insns only for now */
         uint32_t insn = cpu_ldl_code(&cpu->env, dc->pc);
@@ -1284,7 +1310,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
         dc->pc += 4;
 
-        if(dc->jump)
+        if(dc->jump || dc->step)
             break;
         if(dc->pc >= next_page_start)
             break;
@@ -1292,6 +1318,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
     if(!dc->jump) {
         tcg_gen_movi_tl(cpu_pc, dc->pc);
+        gen_steppoint(dc);
         tcg_gen_exit_tb(0);
     }
 

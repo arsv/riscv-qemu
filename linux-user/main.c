@@ -3780,7 +3780,7 @@ void cpu_loop(CPUTLGState *env)
 void cpu_loop(CPURISCVState *env)
 {
     CPUState *cs = CPU(riscv_env_get_cpu(env));
-    int trapnr, gdbsig;
+    int trapnr, sig;
     target_ulong ret;
     target_siginfo_t info;
 
@@ -3788,7 +3788,6 @@ void cpu_loop(CPURISCVState *env)
         cpu_exec_start(cs);
         trapnr = cpu_exec(cs);
         cpu_exec_end(cs);
-        gdbsig = 0;
 
         switch (trapnr) {
         case EXCP_SYSCALL:
@@ -3815,17 +3814,20 @@ void cpu_loop(CPURISCVState *env)
             info._sifields._sigfault._addr = env->pc;
             queue_signal(env, info.si_signo, &info);
             break;
+        case EXCP_DEBUG:
+            sig = gdb_handlesig(cs, TARGET_SIGTRAP);
+            if (sig) {
+                info.si_signo = sig;
+                info.si_errno = 0;
+                info.si_code = TARGET_TRAP_BRKPT;
+                queue_signal(env, info.si_signo, &info);
+            }
+            break;
         default:
             EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
                      trapnr);
-            gdbsig = TARGET_SIGILL;
-            break;
-        }
-        if (gdbsig) {
-            gdb_handlesig(cs, gdbsig);
-            if (gdbsig != TARGET_SIGTRAP) {
-                exit(EXIT_FAILURE);
-            }
+            gdb_handlesig(cs, TARGET_SIGILL);
+            exit(EXIT_FAILURE);
         }
 
         process_pending_signals(env);
