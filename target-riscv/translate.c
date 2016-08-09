@@ -1218,7 +1218,7 @@ static void gen_opfp(DC, uint32_t insn)
    does not add to readability, and makes checking against
    ISA listings way harder than it should be. */
 
-static void decode(DC, uint32_t insn)
+static void gen_one_insn(DC, uint32_t insn)
 {
     switch(insn & 0x7F) {
         case /* 0110111 */ 0x37: gen_lui(dc, insn); break;
@@ -1280,7 +1280,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
         /* Assuming 4-byte insns only for now */
         uint32_t insn = cpu_ldl_code(&cpu->env, dc->pc);
-        decode(dc, insn);
+        gen_one_insn(dc, insn);
 
         dc->pc += 4;
 
