@@ -30,7 +30,7 @@ typedef struct DisasContext {
     TranslationBlock *tb;
     target_ulong pc;
     bool jump;
-    bool step;
+    bool singlestep;
 } DisasContext;
 
 #define DC DisasContext* dc
@@ -144,20 +144,25 @@ static TCGv temp_new_andi(TCGv vs, target_long mask)
 static void gen_exception(DC, unsigned int excp)
 {
     TCGv_i32 tmp = tcg_const_i32(excp);
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
     gen_helper_exception(cpu_env, tmp);
     tcg_temp_free_i32(tmp);
 }
 
 static void gen_illegal(DC)
 {
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
     gen_exception(dc, EXCP_ILLEGAL);
 }
 
-static void gen_steppoint(DC)
+static void gen_exit_tb(DC)
 {
-    if(dc->step)
-        gen_exception(dc, EXCP_DEBUG);
+    if(dc->singlestep) {
+        TCGv_i32 tmp = tcg_const_i32(EXCP_DEBUG);
+        gen_helper_exception(cpu_env, tmp);
+        tcg_temp_free_i32(tmp);
+    } else {
+        tcg_gen_exit_tb(0);
+    }
 }
 
 /* Load upper immediate: rd = (imm << 12)
@@ -737,8 +742,7 @@ static void gen_jal(DC, uint32_t insn)
         tcg_gen_movi_tl(cpu_gpr[rd], dc->pc + 4);
 
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_steppoint(dc);
-    tcg_gen_exit_tb(0);
+    gen_exit_tb(dc);
 
     dc->jump = true;
 }
@@ -786,8 +790,7 @@ static void gen_jalr(DC, uint32_t insn)
 
     /* We're clear, set PC */
     tcg_gen_add_tl(cpu_pc, cpu_pc, va);
-    gen_steppoint(dc);
-    tcg_gen_exit_tb(0);
+    gen_exit_tb(dc);
     dc->jump = true;
 
     tcg_temp_free(vx);
@@ -838,8 +841,7 @@ static void gen_branch(DC, uint32_t insn)
     }
 
     tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_steppoint(dc);
-    tcg_gen_exit_tb(0);
+    gen_exit_tb(dc);
 
     gen_set_label(l);
 }
@@ -911,6 +913,7 @@ static void gen_miscmem(DC, uint32_t insn)
 
 static void gen_ecall(DC)
 {
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
     gen_exception(dc, EXCP_SYSCALL);
     dc->jump = true;
 }
@@ -1261,6 +1264,7 @@ static void gen_one_insn(DC, uint32_t insn)
 
 static void gen_breakpoint(DC)
 {
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
     gen_exception(dc, EXCP_DEBUG);
     dc->jump = true;
 }
@@ -1294,7 +1298,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
     dc->tb = tb;
     dc->pc = tb->pc;
     dc->jump = false;
-    dc->step = cs->singlestep_enabled;
+    dc->singlestep = cs->singlestep_enabled;
 
     gen_tb_start(tb);
 
@@ -1310,7 +1314,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
         dc->pc += 4;
 
-        if(dc->jump || dc->step)
+        if(dc->jump || dc->singlestep)
             break;
         if(dc->pc >= next_page_start)
             break;
@@ -1318,8 +1322,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
 
     if(!dc->jump) {
         tcg_gen_movi_tl(cpu_pc, dc->pc);
-        gen_steppoint(dc);
-        tcg_gen_exit_tb(0);
+        gen_exit_tb(dc);
     }
 
     gen_tb_end(tb, num_insns);
