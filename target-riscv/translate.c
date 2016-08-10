@@ -728,7 +728,7 @@ static void gen_jal(DC, uint32_t insn)
             (BITFIELD(insn, 20, 20) << 11) |
             (BITFIELD(insn, 30, 21) << 1);
 
-    if(imm % 3) {
+    if(imm & 3) {
         gen_illegal(dc);
         return;
     }
@@ -818,7 +818,7 @@ static void gen_branch(DC, uint32_t insn)
             (BITFIELD(insn,  7,  7) << 11) |        /* 11 */
             (((((int32_t)insn) >> 30) & 1) << 12);  /* 12, sign bit */
 
-    if(imm % 3) {
+    if(imm & 3) {
         gen_illegal(dc);
         return;
     }
