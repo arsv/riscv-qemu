@@ -111,6 +111,8 @@ static void riscv_cpu_class_init(ObjectClass *oc, void *data)
     cc->gdb_read_register = riscv_cpu_gdb_read_register;
     cc->gdb_write_register = riscv_cpu_gdb_write_register;
 
+    cc->handle_mmu_fault = riscv_cpu_handle_mmu_fault; /* linux-user only */
+
     /* Reason: riscv_cpu_init() calls cpu_exec_init(), which saves
        the object in cpus -> dangling pointer after final object_unref(). */
     dc->cannot_destroy_with_object_finalize_yet = true;
