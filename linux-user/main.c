@@ -3807,6 +3807,8 @@ void cpu_loop(CPURISCVState *env)
                 env->pc -= 4;
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {
                 env->gpr[xA0] = ret;
+            } if(cs->singlestep_enabled) {
+                goto gdbstep;
             }
             break;
         case EXCP_ILLEGAL:
@@ -3818,6 +3820,7 @@ void cpu_loop(CPURISCVState *env)
             sigcode = TARGET_SEGV_MAPERR;
             break;
         case EXCP_DEBUG:
+        gdbstep:
             signum = gdb_handlesig(cs, TARGET_SIGTRAP);
             sigcode = TARGET_TRAP_BRKPT;
             break;
