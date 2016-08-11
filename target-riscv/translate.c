@@ -219,9 +219,9 @@ static void gen_slli(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 
 static void gen_srxi(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
-    if(flags & ~(1<<5))
+    if(flags & ~(1<<4))
         gen_illegal(dc);
-    else if(flags & (1<<5))
+    else if(flags & (1<<4))
         tcg_gen_sari_tl(vd, vs, shamt);
     else
         tcg_gen_shri_tl(vd, vs, shamt);
@@ -246,8 +246,8 @@ static void gen_opimm(DC, uint32_t insn)
     int32_t imm = ((int32_t)insn) >> 20;
     unsigned rs = BITFIELD(insn, 19, 15);
     unsigned rd = BITFIELD(insn, 11, 7);
-    unsigned shamt = BITFIELD(insn, 24, 20);
-    unsigned flags = BITFIELD(insn, 31, 25);
+    unsigned shamt = BITFIELD(insn, 25, 20);
+    unsigned flags = BITFIELD(insn, 31, 26);
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
     TCGv vs = cpu_gpr[rs];
@@ -274,8 +274,8 @@ static void gen_opimm32(DC, uint32_t insn)
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rs = BITFIELD(insn, 19, 15);
     int32_t imm = ((int32_t)insn >> 20);      /* ADDIW only */
-    unsigned shamt = BITFIELD(insn, 24, 20);  /* SLLIW, SRLIW, SRAIW */
-    unsigned flags = BITFIELD(insn, 31, 25);  /* SLLIW, SRLIW, SRAIW */
+    unsigned shamt = BITFIELD(insn, 25, 20);  /* SLLIW, SRLIW, SRAIW */
+    unsigned flags = BITFIELD(insn, 31, 26);  /* SLLIW, SRLIW, SRAIW */
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
     TCGv vs = cpu_gpr[rs];
