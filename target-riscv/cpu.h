@@ -116,8 +116,6 @@ RISCVCPU *cpu_riscv_init(const char *cpu_model);
 int cpu_riscv_signal_handler(int host_signum, void *pinfo, void *puc);
 void riscv_cpu_dump_state(CPUState *cs,
         FILE *f, fprintf_function cpu_fprintf, int flags);
-int riscv_cpu_handle_mmu_fault(CPUState *cs,
-        vaddr address, int rw, int mmu_idx);
 
 int riscv_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int riscv_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);

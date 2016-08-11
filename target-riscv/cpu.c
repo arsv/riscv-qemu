@@ -86,6 +86,14 @@ static void riscv_cpu_set_pc(CPUState *cs, vaddr value)
     cpu->env.pc = value;
 }
 
+static int riscv_cpu_handle_mmu_fault(CPUState *cs,
+		vaddr address, int rw, int mmu_idx)
+{
+    cs->exception_index = EXCP_FAULT;
+
+    return 1;
+}
+
 /* QOM stuff, class registration. */
 
 static void riscv_cpu_class_init(ObjectClass *oc, void *data)
