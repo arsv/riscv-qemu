@@ -152,6 +152,16 @@ static void gen_illegal(DC)
 {
     tcg_gen_movi_tl(cpu_pc, dc->pc);
     gen_exception(dc, EXCP_ILLEGAL);
+
+    /* Let illegal instruction stop TB translation.
+       The exception will cause block exit anyway, but if whatever
+       follows it happens to be garbage as well it won't be translated.
+
+       This may be wrong if exception is raises conditionally at runtime
+       *and* the other branch is not a jump, like AMO for instance.
+       But AMOs should raise a different exception anyway. */
+
+    dc->jump = true;
 }
 
 static void gen_exit_tb(DC)
