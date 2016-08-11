@@ -737,11 +737,13 @@ static void gen_op32(DC, uint32_t insn)
 static void gen_jal(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
-    uint32_t imm =
-            (BITFIELD(insn, 31, 31) << 20) |
+    int32_t imm =
             (BITFIELD(insn, 19, 12) << 12) |
             (BITFIELD(insn, 20, 20) << 11) |
             (BITFIELD(insn, 30, 21) << 1);
+
+    if(BITFIELD(insn, 31, 31)) /* sign bit */
+        imm |= (-1 << 19);
 
     if(imm & 3) {
         gen_illegal(dc);
@@ -828,8 +830,10 @@ static void gen_branch(DC, uint32_t insn)
     int16_t imm =
             (BITFIELD(insn, 11,  8) <<  1) |        /*  4:1 */
             (BITFIELD(insn, 30, 25) <<  5) |        /* 10:5 */
-            (BITFIELD(insn,  7,  7) << 11) |        /* 11 */
-            (((((int32_t)insn) >> 30) & 1) << 12);  /* 12, sign bit */
+            (BITFIELD(insn,  7,  7) << 11);         /* 11 */
+
+    if(insn & (1<<31))
+        imm |= (-1 << 12);                          /* 12, sign bit */
 
     if(imm & 3) {
         gen_illegal(dc);
@@ -889,8 +893,8 @@ static void gen_store(DC, uint32_t insn)
 {
     unsigned rs1 = BITFIELD(insn, 19, 15);  /* address */
     unsigned rs2 = BITFIELD(insn, 24, 20);  /* data to store */
-    int32_t imm = (insn & 0x1F) |           /* 5 lower bits from insn */
-           (((int32_t)insn >> 20) & 0x1F);  /* 31:25 and 5 clear bits */
+    int32_t imm = BITFIELD(insn, 11, 7) |   /* 5 lower bits */
+           (((int32_t)insn >> 20) & ~0x1F); /* 31:25 w/ 5 clear bits */
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
