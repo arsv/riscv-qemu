@@ -789,7 +789,7 @@ static void gen_jalr(DC, uint32_t insn)
     gen_set_label(skip);
 
     /* We're clear, set PC */
-    tcg_gen_add_tl(cpu_pc, cpu_pc, va);
+    tcg_gen_mov_tl(cpu_pc, va);
     gen_exit_tb(dc);
     dc->jump = true;
 
