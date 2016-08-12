@@ -20,7 +20,7 @@ static void set_rounding_mode(ENV, uint32_t rm)
         case /* 010 */ 2: mode = float_round_down; break;
         case /* 011 */ 3: mode = float_round_up; break;
         case /* 100 */ 4: mode = float_round_ties_away; break;
-        default: raise_env_exception(env, EXCP_ILLEGAL);
+        default: raise_exception(env, EXCP_ILLEGAL);
     }
 
     env->fpstatus.float_rounding_mode = mode;

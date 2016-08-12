@@ -5,5 +5,5 @@
 
 void HELPER(exception)(CPURISCVState *env, uint32_t excp)
 {
-    raise_env_exception(env, excp);
+    raise_exception(env, excp);
 }

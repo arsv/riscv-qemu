@@ -22,19 +22,11 @@
 #include "exception.h"
 #include "exec/exec-all.h"
 
-/* XXX: drop _cpu_ version? Other arches seems to use this but RISC-V
-   only ever calls the _env_ one. */
-
-void QEMU_NORETURN raise_cpu_exception(RISCVCPU *cpu, uint32_t excp)
+void QEMU_NORETURN raise_exception(CPURISCVState *env, uint32_t excp)
 {
+    RISCVCPU *cpu = riscv_env_get_cpu(env);
     CPUState *cs = CPU(cpu);
 
     cs->exception_index = excp;
     cpu_loop_exit_restore(cs, 0);
-}
-
-void QEMU_NORETURN raise_env_exception(CPURISCVState *env, uint32_t excp)
-{
-    RISCVCPU *cpu = riscv_env_get_cpu(env);
-    raise_cpu_exception(cpu, excp);
 }

@@ -86,7 +86,7 @@ static target_ulong rv_csr_read(ENV, unsigned csr)
         case 0x001: return rv_rcsr_fflags(env);
         case 0x002: return env->frm;
         case 0x003: return rv_rcsr_fcsr(env);
-        default: raise_env_exception(env, EXCP_ILLEGAL);
+        default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
 
@@ -96,7 +96,7 @@ static void rv_csr_write(ENV, unsigned csr, target_ulong val)
         case 0x001: rv_wcsr_fflags(env, val); break;
         case 0x002: rv_wcsr_frm(env, val); break;
         case 0x003: rv_wcsr_fcsr(env, val); break;
-        default: raise_env_exception(env, EXCP_ILLEGAL);
+        default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
 
@@ -144,5 +144,5 @@ void HELPER(csr)(ENV, uint32_t insn)
     return;
 
 illegal:
-    raise_env_exception(env, EXCP_ILLEGAL);
+    raise_exception(env, EXCP_ILLEGAL);
 }
