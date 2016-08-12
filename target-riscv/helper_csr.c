@@ -15,7 +15,7 @@
    Keeping a shadow fflags variable in ENV makes no sense and would not
    simplify any of the following functions. */
 
-static unsigned rv_rcsr_fflags(ENV)
+static unsigned rv_get_fflags(ENV)
 {
     signed char flags = env->fpstatus.float_exception_flags;
     unsigned ret = 0;
@@ -34,7 +34,7 @@ static unsigned rv_rcsr_fflags(ENV)
     return ret;
 }
 
-static void rv_wcsr_fflags(ENV, unsigned val)
+static void rv_set_fflags(ENV, unsigned val)
 {
     signed char flags = 0;
 
@@ -59,20 +59,20 @@ static void rv_wcsr_fflags(ENV, unsigned val)
    for each given instruction, which may be static (per-insn) or dynamic (frm),
    so frm itself must be stored somewhere else. */
 
-static void rv_wcsr_frm(ENV, unsigned val)
+static void rv_set_frm(ENV, unsigned val)
 {
     env->frm = val & 7;
 }
 
-static unsigned rv_rcsr_fcsr(ENV)
+static unsigned rv_get_fcsr(ENV)
 {
-    return rv_rcsr_fflags(env) | (env->frm << 5);
+    return rv_get_fflags(env) | (env->frm << 5);
 }
 
-static void rv_wcsr_fcsr(ENV, unsigned val)
+static void rv_set_fcsr(ENV, unsigned val)
 {
-    rv_wcsr_fflags(env, BITFIELD(val, 4, 0));
-    rv_wcsr_frm(env, BITFIELD(val, 7, 5));
+    rv_set_fflags(env, BITFIELD(val, 4, 0));
+    rv_set_frm(env, BITFIELD(val, 7, 5));
 }
 
 /* Primary CSR tables.
@@ -80,22 +80,22 @@ static void rv_wcsr_fcsr(ENV, unsigned val)
    Omitting read-only registers from the write table ensures EXCP_ILLEGAL
    on any write attempt. There are not other checks for ro/rw status. */
 
-static target_ulong rv_csr_read(ENV, unsigned csr)
+static target_ulong rv_get_csr(ENV, unsigned csr)
 {
     switch(csr) {
-        case 0x001: return rv_rcsr_fflags(env);
+        case 0x001: return rv_get_fflags(env);
         case 0x002: return env->frm;
-        case 0x003: return rv_rcsr_fcsr(env);
+        case 0x003: return rv_get_fcsr(env);
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
 
-static void rv_csr_write(ENV, unsigned csr, target_ulong val)
+static void rv_set_csr(ENV, unsigned csr, target_ulong val)
 {
     switch(csr) {
-        case 0x001: rv_wcsr_fflags(env, val); break;
-        case 0x002: rv_wcsr_frm(env, val); break;
-        case 0x003: rv_wcsr_fcsr(env, val); break;
+        case 0x001: rv_set_fflags(env, val); break;
+        case 0x002: rv_set_frm(env, val); break;
+        case 0x003: rv_set_fcsr(env, val); break;
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
@@ -125,7 +125,7 @@ void HELPER(csr)(ENV, uint32_t insn)
     if(regop == RW && !rd) /* CSRRW(I) x0 are silent nops */
         return;
 
-    target_ulong val = rv_csr_read(env, csr);
+    target_ulong val = rv_get_csr(env, csr);
 
     if(regop != RW && !rs) /* CSRRS(I)/CSRRC(i) with rs=x0 skip writes */
         return;
@@ -139,7 +139,7 @@ void HELPER(csr)(ENV, uint32_t insn)
         default: goto illegal;
     }
 
-    rv_csr_write(env, csr, val);
+    rv_set_csr(env, csr, val);
 
     return;
 
