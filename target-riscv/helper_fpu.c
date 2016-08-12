@@ -11,7 +11,7 @@
 
 static void set_rounding_mode(ENV, uint32_t rm)
 {
-    unsigned effective = (rm == /* 111 */ 7) ? rm : env->frm;
+    unsigned effective = (rm == /* 111 */ 7) ? env->frm : rm;
     unsigned char mode;
 
     switch(effective) {
