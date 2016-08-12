@@ -3,8 +3,6 @@
 #include "cpu.h"
 #include "exec/gdbstub.h"
 
-#define TARGET_LONG_BYTES (TARGET_LONG_BITS/8)
-
 int riscv_cpu_gdb_read_register(CPUState *cs, uint8_t *mem_buf, int n)
 {
     RISCVCPU *cpu = RISCV_CPU(cs);
