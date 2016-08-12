@@ -1215,7 +1215,6 @@ static void gen_opfp(DC, uint32_t insn)
     TCGv vd = cpu_gpr[rd];
     TCGv v1 = cpu_gpr[rs1];
     TCGv_i32 vm = tcg_const_i32(rm);
-    int rs2d = (rs2 << 1) | (insn & 1);
 
     switch(func) {
         /* Single-precision */
@@ -1237,10 +1236,10 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 0010101 */ 0x15: gen_fminmax_d(dc, fd, ep, f1, f2, rm); break;
         case /* 1010001 */ 0x51: gen_fcmp_d(dc, fd, ep, f1, f2, rm); break;
         /* Float-integer conversion */
-        case /* 1100000 */ 0x60: gen_fcvt_xs(dc, vd, ep, f1, vm, rs2d); break;
-        case /* 1101000 */ 0x68: gen_fcvt_sx(dc, fd, ep, v1, vm, rs2d); break;
-        case /* 1100001 */ 0x61: gen_fcvt_xd(dc, vd, ep, f1, vm, rs2d); break;
-        case /* 1101001 */ 0x69: gen_fcvt_dx(dc, fd, ep, v1, vm, rs2d); break;
+        case /* 1100000 */ 0x60: gen_fcvt_xs(dc, vd, ep, f1, vm, rs2); break;
+        case /* 1101000 */ 0x68: gen_fcvt_sx(dc, fd, ep, v1, vm, rs2); break;
+        case /* 1100001 */ 0x61: gen_fcvt_xd(dc, vd, ep, f1, vm, rs2); break;
+        case /* 1101001 */ 0x69: gen_fcvt_dx(dc, fd, ep, v1, vm, rs2); break;
         /* Float-Integer moves (and fclassify) */
         case /* 1110000 */ 0x70: gen_fmv_xs(dc, vd, f1, rm); break;
         case /* 1111000 */ 0x78: gen_fmv_sx(dc, fd, v1, rm); break;
