@@ -5,7 +5,7 @@
 
 #define ENV CPURISCVState *env      /* CPU state environment */
 #define FPS &env->fpstatus          /* FP status (softfloat internal state) */
-#define fpv uint64_t                /* FP value, a ref to one of FPRs */
+#define fpv uint64_t                /* FP register value type */
 #define gpv uint64_t                /* GP register value type */
 #define RM uint32_t rm
 
