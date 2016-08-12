@@ -127,9 +127,23 @@ static TCGv temp_new_ext32s(TCGv vs)
     return vx;
 }
 
+static TCGv temp_local_new_ext32s(TCGv vs)
+{
+    TCGv vx = tcg_temp_local_new();
+    tcg_gen_ext32s_tl(vx, vs);
+    return vx;
+}
+
 static TCGv temp_new_ext32u(TCGv vs)
 {
     TCGv vx = tcg_temp_new();
+    tcg_gen_ext32u_tl(vx, vs);
+    return vx;
+}
+
+static TCGv temp_local_new_ext32u(TCGv vs)
+{
+    TCGv vx = tcg_temp_local_new();
     tcg_gen_ext32u_tl(vx, vs);
     return vx;
 }
@@ -613,10 +627,13 @@ static void gen_mulw(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(sink);
 }
 
+/* OP32 division routines carry temps across branches!
+   All temps must be local, TCG does not like it otherwise. */
+
 static void gen_divw(TCGv vd, TCGv vs1, TCGv vs2)
 {
-    TCGv vx1 = temp_new_ext32s(vs1);
-    TCGv vx2 = temp_new_ext32s(vs2);
+    TCGv vx1 = temp_local_new_ext32s(vs1);
+    TCGv vx2 = temp_local_new_ext32s(vs2);
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vx1, vx2, 0);
@@ -632,8 +649,8 @@ static void gen_divw(TCGv vd, TCGv vs1, TCGv vs2)
 
 static void gen_divuw(TCGv vd, TCGv vs1, TCGv vs2)
 {
-    TCGv vx1 = temp_new_ext32u(vs1);
-    TCGv vx2 = temp_new_ext32u(vs2);
+    TCGv vx1 = temp_local_new_ext32u(vs1);
+    TCGv vx2 = temp_local_new_ext32u(vs2);
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vx1, vx2, 0);
@@ -648,8 +665,8 @@ static void gen_divuw(TCGv vd, TCGv vs1, TCGv vs2)
 
 static void gen_remw(TCGv vd, TCGv vs1, TCGv vs2)
 {
-    TCGv vx1 = temp_new_ext32s(vs1);
-    TCGv vx2 = temp_new_ext32s(vs2);
+    TCGv vx1 = temp_local_new_ext32s(vs1);
+    TCGv vx2 = temp_local_new_ext32s(vs2);
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vx1, vx2, 0);
