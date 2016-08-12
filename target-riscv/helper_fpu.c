@@ -256,7 +256,7 @@ fpv HELPER(fcvt_d_lu)(ENV, gpv a, RM)
     return uint64_to_float64(a, FPS);
 }
 
-/* Like float32_is_signaling_nan() with status->snan_bit_is_one set.
+/* Like float32_is_signaling_nan() with status->snan_bit_is_one clear.
    Bringing in ENV to pass a value that is a hard-wired constant for
    the arch sounds like a huge overkill. */
 
@@ -300,7 +300,7 @@ gpv HELPER(fclass_s)(fpv a)
     }
 }
 
-/* Like float64_is_signaling_nan() but with snan_bit_is_one clear (??!) */
+/* Like float64_is_signaling_nan() but with snan_bit_is_one clear */
 
 static bool float64_is_signaling_nan_(float64 a)
 {

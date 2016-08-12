@@ -52,11 +52,13 @@ static void riscv_cpu_reset(CPUState *s)
 
     memset(env, 0, sizeof(*env));
 
+    /* ISA spec 7.3: whenever NaN is raised, it is the canonical NaN. */
+    env->fpstatus.default_nan_mode = true;
+
     /* No point in setting env->pc for linux-user mode, it's going
        to be set anyway by the elf loader. */
 
-    /* XXX: why is this necessary? */
-    s->exception_index = EXCP_NONE;
+    s->exception_index = -1;
 }
 
 static bool riscv_cpu_has_work(CPUState *cs)
