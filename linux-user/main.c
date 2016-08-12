@@ -3827,7 +3827,6 @@ void cpu_loop(CPURISCVState *env)
         default:
             EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
                      trapnr);
-            cpu_dump_state(cs, stderr, fprintf, 0);
             exit(EXIT_FAILURE);
         }
 
