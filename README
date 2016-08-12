@@ -1,107 +1,77 @@
-         QEMU README
-         ===========
+About
+~~~~~
+This repo a personal side branch of QEMU with the goal of developing RISC-V
+target support in a way that would allow merging it into the mainline project.
+See http://qemu.org and git://git.qemu.org/qemu.git
 
-QEMU is a generic and open source machine & userspace emulator and
-virtualizer.
+This repo is not directly related to the official RISC-V qemu project
+found at https://github.com/riscv/riscv-qemu
+Major changes include:
 
-QEMU is capable of emulating a complete machine in software without any
-need for hardware virtualization support. By using dynamic translation,
-it achieves very good performance. QEMU can also integrate with the Xen
-and KVM hypervisors to provide emulated hardware while allowing the
-hypervisor to manage the CPU. With hypervisor support, QEMU can achieve
-near native performance for CPUs. When QEMU emulates CPUs directly it is
-capable of running operating systems made for one machine (e.g. an ARMv7
-board) on a different machine (e.g. an x86_64 PC board).
+  * small reviewable commits (but see below)
+  * linux-user mode support (but no system mode atm)
+  * common qemu softfloat for FP ops
+  * shorter and simplier TCG frontend
+  * different TCG code for some ops
 
-QEMU is also capable of providing userspace API virtualization for Linux
-and BSD kernel interfaces. This allows binaries compiled against one
-architecture ABI (e.g. the Linux PPC64 ABI) to be run on a host using a
-different architecture ABI (e.g. the Linux x86_64 ABI). This does not
-involve any hardware emulation, simply CPU and syscall emulation.
+The project started as an attempt to add linux-user mode to the official
+riscv-qemu, but ended up with a clean-sheet rewrite of the whole translation
+module and most of the supporting structure as well. As such, it takes more
+from openrisc, sh4, moxie and microblaze ports than it does from the original
+riscv port.
 
-QEMU aims to fit into a variety of use cases. It can be invoked directly
-by users wishing to have full control over its behaviour and settings.
-It also aims to facilitate integration into higher level management
-layers, by providing a stable command line interface and monitor API.
-It is commonly invoked indirectly via the libvirt library when using
-open source applications such as oVirt, OpenStack and virt-manager.
+The visible "devel" branch is *NOT* what is going to be upstreamed.
+It's a development branch with lots of backtracking and bug fixing.
+The patches are going to be re-arranged for submission.
 
-QEMU as a whole is released under the GNU General Public License,
-version 2. For full licensing details, consult the LICENSE file.
+
+Coverage and status
+~~~~~~~~~~~~~~~~~~~
+RV64 user mode emulation (qemu-riscv) builds and runs executables.
+System mode emulation is not supported yet.
+
+Extensions M, F, D (mul/div, single and double precision floats) are supported.
+Extensions A and C (AMO, compresses instructions) are not supported yet.
+Most CSRs are not properly supported, including mandatory counters.
+
+RV32 is not supported.
+Disabling already-implemented extensions is not possible yet.
+
+GDB remote debugging works.
+
+Current plans: extensions A and C, system mode, RV32, roughly in that order,
+possibly with minor tweaks in-between them. Then maybe support for F w/o D,
+selective extensions, and/or CPU models.
 
 
 Building
-========
+~~~~~~~~
+Follow standard qemu procedure for riscv-linux-user target:
 
-QEMU is multi-platform software intended to be buildable on all modern
-Linux platforms, OS-X, Win32 (via the Mingw64 toolchain) and a variety
-of other UNIX targets. The simple steps to build QEMU are:
+    ./configure --target-list=riscv-linux-user [--python=/usr/bin/python2]
+    make
 
-  mkdir build
-  cd build
-  ../configure
-  make
+Note configure needs explicit python2 command supplied in case the host
+python is python 3.x, which is pretty common in modern distros.
 
-Complete details of the process for building and configuring QEMU for
-all supported host platforms can be found in the qemu-tech.html file.
-Additional information can also be found online via the QEMU website:
-
-  http://qemu-project.org/Hosts/Linux
-  http://qemu-project.org/Hosts/W32
+The target is just "riscv" for now.
 
 
-Submitting patches
-==================
+Debugging
+~~~~~~~~~
+GDB from the official RISC-V toolchain must be used in extended-remote mode:
 
-The QEMU source code is maintained under the GIT version control system.
+    qemu-riscv -g 1234 ./executable
 
-   git clone git://git.qemu-project.org/qemu.git
+    riscv64-unknown-elf-gdb -ex "target extended-remote :1234" ./executable
 
-When submitting patches, the preferred approach is to use 'git
-format-patch' and/or 'git send-email' to format & send the mail to the
-qemu-devel@nongnu.org mailing list. All patches submitted must contain
-a 'Signed-off-by' line from the author. Patches should follow the
-guidelines set out in the HACKING and CODING_STYLE files.
-
-Additional information on submitting patches can be found online via
-the QEMU website
-
-  http://qemu-project.org/Contribute/SubmitAPatch
-  http://qemu-project.org/Contribute/TrivialPatches
+Instruction single-stepping, line stepping and breakpoints should work.
+GDB should display xN and fN registers properly as well.
 
 
-Bug reporting
-=============
+License and contacts
+~~~~~~~~~~~~~~~~~~~~
+RISC-V related code in this branch is licensed under the terms
+of GNU General Public License version 2, like most of QEMU.
 
-The QEMU project uses Launchpad as its primary upstream bug tracker. Bugs
-found when running code built from QEMU git or upstream released sources
-should be reported via:
-
-  https://bugs.launchpad.net/qemu/
-
-If using QEMU via an operating system vendor pre-built binary package, it
-is preferable to report bugs to the vendor's own bug tracker first. If
-the bug is also known to affect latest upstream code, it can also be
-reported via launchpad.
-
-For additional information on bug reporting consult:
-
-  http://qemu-project.org/Contribute/ReportABug
-
-
-Contact
-=======
-
-The QEMU community can be contacted in a number of ways, with the two
-main methods being email and IRC
-
- - qemu-devel@nongnu.org
-   http://lists.nongnu.org/mailman/listinfo/qemu-devel
- - #qemu on irc.oftc.net
-
-Information on additional methods of contacting the community can be
-found online via the QEMU website:
-
-  http://qemu-project.org/Contribute/StartHere
-
--- End
+Alex Suykov <alex.suykov@gmail.com>
