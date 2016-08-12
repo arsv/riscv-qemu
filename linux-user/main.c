@@ -3792,6 +3792,9 @@ void cpu_loop(CPURISCVState *env)
         sigcode = 0;
 
         switch (trapnr) {
+        case EXCP_INTERRUPT:
+            /* just indicate that signals should be handled asap */
+            break;
         case EXCP_SYSCALL:
             env->pc += 4;
             ret = do_syscall(env,
