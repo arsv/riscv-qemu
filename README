@@ -30,7 +30,7 @@ Coverage and status
 RV64 user mode emulation (qemu-riscv) builds and runs some executables.
 System mode emulation is not supported yet.
 
-Extensions M, F, D (mul/div, single and double precision floats) are buggy.
+Extensions M (mul/div) works. Extensions F and D are buggy.
 Extensions A and C (AMO, compresses instructions) are not supported yet.
 Most CSRs are not properly supported, including mandatory counters.
 
