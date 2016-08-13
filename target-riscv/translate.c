@@ -1004,8 +1004,8 @@ static void gen_storefp(DC, uint32_t insn)
 {
     unsigned rs1 = BITFIELD(insn, 19, 15);  /* address */
     unsigned rs2 = BITFIELD(insn, 24, 20);  /* fpr to store */
-    int32_t imm = (insn & 0x1F) |           /* 5 lower bits from insn */
-           (((int32_t)insn >> 20) & 0x1F);  /* 31:25 and 5 clear bits */
+    int32_t imm = BITFIELD(insn, 11, 7) |    /* 5 lower bits from insn */
+           (((int32_t)insn >> 20) & ~0x1F);  /* 31:25 and 5 clear bits */
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
