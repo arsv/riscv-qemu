@@ -461,7 +461,7 @@ static void gen_div(TCGv vd, TCGv vs1, TCGv vs2)
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vs1, vs2, 0);
-    gen_div_overcheck(done, vd, vs2, vs2, 0);
+    gen_div_overcheck(done, vd, vs1, vs2, 0);
     tcg_gen_div_tl(vd, vs1, vs2);
 
     gen_set_label(done);
@@ -482,7 +482,7 @@ static void gen_rem(TCGv vd, TCGv vs1, TCGv vs2)
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vs1, vs2, 1);
-    gen_div_overcheck(done, vd, vs2, vs2, 1);
+    gen_div_overcheck(done, vd, vs1, vs2, 1);
     tcg_gen_rem_tl(vd, vs1, vs2);
 
     gen_set_label(done);
@@ -654,13 +654,13 @@ static void gen_divuw(TCGv vd, TCGv vs1, TCGv vs2)
     TCGLabel* done = gen_new_label();
 
     gen_div_zerocheck(done, vd, vx1, vx2, 0);
-    tcg_gen_div_tl(vd, vx1, vx2);
-    tcg_gen_ext32u_tl(vd, vd);
+    tcg_gen_divu_tl(vd, vx1, vx2);
 
     tcg_temp_free(vx2);
     tcg_temp_free(vx1);
 
     gen_set_label(done);
+    tcg_gen_ext32s_tl(vd, vd);
 }
 
 static void gen_remw(TCGv vd, TCGv vs1, TCGv vs2)
@@ -669,31 +669,31 @@ static void gen_remw(TCGv vd, TCGv vs1, TCGv vs2)
     TCGv vx2 = temp_local_new_ext32s(vs2);
     TCGLabel* done = gen_new_label();
 
-    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    gen_div_zerocheck(done, vd, vx1, vx2, 1);
     /* gen_div_overcheck not needed, DIVW cannot overflow? */
     tcg_gen_rem_tl(vd, vx1, vx2);
-    tcg_gen_ext32s_tl(vd, vd);
 
     tcg_temp_free(vx2);
     tcg_temp_free(vx1);
 
     gen_set_label(done);
+    tcg_gen_ext32s_tl(vd, vd);
 }
 
 static void gen_remuw(TCGv vd, TCGv vs1, TCGv vs2)
 {
-    TCGv vx1 = temp_new_ext32u(vs1);
-    TCGv vx2 = temp_new_ext32u(vs2);
+    TCGv vx1 = temp_local_new_ext32u(vs1);
+    TCGv vx2 = temp_local_new_ext32u(vs2);
     TCGLabel* done = gen_new_label();
 
-    gen_div_zerocheck(done, vd, vx1, vx2, 0);
+    gen_div_zerocheck(done, vd, vx1, vx2, 1);
     tcg_gen_rem_tl(vd, vx1, vx2);
-    tcg_gen_ext32s_tl(vd, vd); /* sign-extend even in U case! */
 
     tcg_temp_free(vx2);
     tcg_temp_free(vx1);
 
     gen_set_label(done);
+    tcg_gen_ext32s_tl(vd, vd); /* sign-extend even in U case! */
 }
 
 /* Like OP but with 32-bit words on RV64.
