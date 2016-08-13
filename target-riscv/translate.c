@@ -1069,9 +1069,11 @@ static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
     TCGv sign = tcg_temp_new();
     TCGv base = tcg_temp_new();
 
-    tcg_gen_andi_tl(sign, f2, 1 << (fw - 1));   /* 1<<31, sign bit */
-    tcg_gen_andi_tl(base, f1, (1 << fw) - 1);   /* 1<<32 - 1 = 0xFFFFFFFF */
-    tcg_gen_xor_tl(base, base, sign);           /* clear sign bit in base */
+    target_long signmask = ((target_ulong)1 << (fw-1));
+    target_long basemask = ((target_ulong)-1) & ~signmask;
+
+    tcg_gen_andi_tl(sign, f2, signmask);
+    tcg_gen_andi_tl(base, f1, basemask);
 
     switch(rm) {
         case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, 1 << (fw - 1));
