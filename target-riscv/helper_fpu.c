@@ -181,12 +181,12 @@ fpv HELPER(feq_s)(ENV, fpv a, fpv b)
 
 fpv HELPER(fmin_d)(ENV, fpv a, fpv b)
 {
-    return float64_min(a, b, FPS);
+    return float64_minnum(a, b, FPS);
 }
 
 fpv HELPER(fmax_d)(ENV, fpv a, fpv b)
 {
-    return float64_min(a, b, FPS);
+    return float64_maxnum(a, b, FPS);
 }
 
 fpv HELPER(flt_d)(ENV, fpv a, fpv b)
