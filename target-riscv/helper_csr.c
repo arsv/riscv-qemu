@@ -118,19 +118,21 @@ void HELPER(csr)(ENV, uint32_t insn)
 
     unsigned regop = BITFIELD(func, 1, 0); /* RW, RS or RC */
     unsigned immrs = BITFIELD(func, 2, 2);
+    target_ulong mask = immrs ? rs : env->gpr[rs];
+    target_ulong val;
 
     if(cpumode < regmode)
         goto illegal;
 
-    if(regop == RW && !rd) /* CSRRW(I) x0 are silent nops */
-        return;
+    if(regop == RW && !rd)
+        val = 0; /* CSRRW(I) x0 do not read the reg */
+    else
+        val = rv_get_csr(env, csr);
 
-    target_ulong val = rv_get_csr(env, csr);
+    if(rd) env->gpr[rd] = val;
 
-    if(regop != RW && !rs) /* CSRRS(I)/CSRRC(i) with rs=x0 skip writes */
-        return;
-
-    target_ulong mask = immrs ? rs : env->gpr[rs];
+    if(regop != RW && !rs)
+        return; /* CSRRS(I)/CSRRC(i) with rs=x0 skip writes */
 
     switch(regop) {
         case RW: val = mask; break;         /* CSRRW */
