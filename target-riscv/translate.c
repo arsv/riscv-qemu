@@ -1076,9 +1076,9 @@ static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
     tcg_gen_andi_tl(base, f1, basemask);
 
     switch(rm) {
-        case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, 1 << (fw - 1));
+        case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, signmask);
         case /* 000 */ 0: tcg_gen_or_tl(fd, base, sign); break;
-        case /* 010 */ 2: tcg_gen_xor_tl(fd, base, sign); break;
+        case /* 010 */ 2: tcg_gen_xor_tl(fd, f1, sign); break;
         default: gen_illegal(dc);
     }
 
