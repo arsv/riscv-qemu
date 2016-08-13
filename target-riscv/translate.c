@@ -715,9 +715,9 @@ static void gen_op32(DC, uint32_t insn)
     switch(rvop_extfunc(insn)) {
         case /* 00.000 */ 0: gen_addw(vd, vs1, vs2); break;
         case /* 10.000 */16: gen_subw(vd, vs1, vs2); break;
-        case /* 00.001 */ 1: gen_sllw(vd, vd, vs2); break;
-        case /* 00.101 */ 5: gen_srlw(vd, vd, vs2); break;
-        case /* 10.101 */21: gen_sraw(vd, vd, vs2); break;
+        case /* 00.001 */ 1: gen_sllw(vd, vs1, vs2); break;
+        case /* 00.101 */ 5: gen_srlw(vd, vs1, vs2); break;
+        case /* 10.101 */21: gen_sraw(vd, vs1, vs2); break;
         case /* 01.000 */ 8: gen_mulw(vd, vs1, vs2); break;
         case /* 01.100 */12: gen_divw(vd, vs1, vs2); break;
         case /* 01.101 */13: gen_divuw(vd, vs1, vs2); break;
