@@ -390,12 +390,12 @@ static void gen_mulhsu(TCGv vd, TCGv vs1, TCGv vs2)
 
     /* negate resl and add 1 */
     TCGv notresl = tcg_temp_new();
-    tcg_gen_xori_tl(notresl, notresl, -1);    /* notresl = ~resl */
-    tcg_gen_addi_tl(resl, notresl, 1);        /* resl = ~resl + 1 */
+    tcg_gen_xori_tl(notresl, resl, -1);   /* notresl = ~resl */
+    tcg_gen_addi_tl(resl, notresl, 1);    /* resl = ~resl + 1 */
 
     /* set vd = ~resh + carry */
     tcg_gen_xori_tl(vd, resh, -1);            /* vd = ~resh */
-    tcg_gen_brcond_tl(TCG_COND_LE, notresl, resl, done);
+    tcg_gen_brcond_tl(TCG_COND_LTU, notresl, resl, done);
     tcg_gen_addi_tl(vd, vd, 1);               /* vd = vd + 1 */
 
     gen_set_label(done);
