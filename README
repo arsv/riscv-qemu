@@ -9,28 +9,28 @@ found at https://github.com/riscv/riscv-qemu
 Major changes include:
 
   * small reviewable commits (but see below)
-  * linux-user mode support (but no system mode atm)
+  * linux-user mode (but no system mode atm)
   * common qemu softfloat for FP ops
   * shorter and simplier TCG frontend
   * different TCG code for some ops
 
 The project started as an attempt to add linux-user mode to the official
 riscv-qemu, but ended up with a clean-sheet rewrite of the whole translation
-module and most of the supporting structure as well. As such, it takes more
-from openrisc, sh4, moxie and microblaze ports than it does from the original
-riscv port.
+module and most of the supporting structure as well. As such, it probably
+takes more from openrisc, sh4, moxie and microblaze ports than it does from
+the original riscv port.
 
-The visible "devel" branch is *NOT* what is going to be upstreamed.
-It's a development branch with lots of backtracking and bug fixing.
+The visible "devel" branch is not what is going to be upstreamed.
+It's a development branch with lots of backtracking, bug fixing, and bugs.
 The patches are going to be re-arranged for submission.
 
 
 Coverage and status
 ~~~~~~~~~~~~~~~~~~~
-RV64 user mode emulation (qemu-riscv) builds and runs executables.
+RV64 user mode emulation (qemu-riscv) builds and runs some executables.
 System mode emulation is not supported yet.
 
-Extensions M, F, D (mul/div, single and double precision floats) are supported.
+Extensions M, F, D (mul/div, single and double precision floats) are buggy.
 Extensions A and C (AMO, compresses instructions) are not supported yet.
 Most CSRs are not properly supported, including mandatory counters.
 
