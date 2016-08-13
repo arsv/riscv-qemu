@@ -204,6 +204,20 @@ fpv HELPER(feq_d)(ENV, fpv a, fpv b)
     return float64_eq(a, b, FPS);
 }
 
+/* Single-Double conversion */
+
+fpv HELPER(fcvt_s_d)(ENV, fpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return float64_to_float32(a, FPS);
+}
+
+fpv HELPER(fcvt_d_s)(ENV, fpv a, RM)
+{
+    set_rounding_mode(env, rm); /* pointelss */
+    return float32_to_float64(a, FPS);
+}
+
 /* 32-bit FP-integer conversion */
 
 gpv HELPER(fcvt_w_s)(ENV, fpv a, RM)

@@ -1158,8 +1158,8 @@ static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
-        case /* 00010 */ 2: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
-        case /* 00011 */ 3: gen_helper_fcvt_d_lu(fd, ep, v1, vm); break;
+        case /* 00000 */ 0: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
+        case /* 00001 */ 1: gen_helper_fcvt_d_lu(fd, ep, v1, vm); break;
         default: gen_illegal(dc);
     }
 }
@@ -1200,6 +1200,22 @@ static void gen_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
     }
 }
 
+static void gen_fcvt_sd(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00001 */ 1: gen_helper_fcvt_s_d(fd, ep, v1, vm); break;
+        default: gen_illegal(dc);
+    }
+}
+
+static void gen_fcvt_ds(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+{
+    switch(rs2) {
+        case /* 00000 */ 0: gen_helper_fcvt_d_s(fd, ep, v1, vm); break;
+        default: gen_illegal(dc);
+    }
+}
+
 static void gen_opfp(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
@@ -1227,7 +1243,7 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 0101100 */ 0x2C: gen_helper_fsqrt_s(fd, ep, f2, vm); break;
         case /* 0010000 */ 0x10: gen_fsgnj(dc, fd, f1, f2, rm, 32); break;
         case /* 0010100 */ 0x14: gen_fminmax_s(dc, fd, ep, f1, f2, rm); break;
-        case /* 1010000 */ 0x50: gen_fcmp_s(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010000 */ 0x50: gen_fcmp_s(dc, vd, ep, f1, f2, rm); break;
         /* Double-precision */
         case /* 0000001 */ 0x01: gen_helper_fadd_d(fd, ep, f1, f2, vm); break;
         case /* 0000101 */ 0x05: gen_helper_fsub_d(fd, ep, f1, f2, vm); break;
@@ -1236,7 +1252,10 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 0101101 */ 0x2D: gen_helper_fsqrt_d(fd, ep, f2, vm); break;
         case /* 0010001 */ 0x11: gen_fsgnj(dc, fd, f1, f2, rm, 64); break;
         case /* 0010101 */ 0x15: gen_fminmax_d(dc, fd, ep, f1, f2, rm); break;
-        case /* 1010001 */ 0x51: gen_fcmp_d(dc, fd, ep, f1, f2, rm); break;
+        case /* 1010001 */ 0x51: gen_fcmp_d(dc, vd, ep, f1, f2, rm); break;
+        /* Single-Double conversion */
+        case /* 0100000 */ 0x20: gen_fcvt_sd(dc, fd, ep, f1, vm, rs2); break;
+        case /* 0100001 */ 0x21: gen_fcvt_ds(dc, fd, ep, f1, vm, rs2); break;
         /* Float-integer conversion */
         case /* 1100000 */ 0x60: gen_fcvt_xs(dc, vd, ep, f1, vm, rs2); break;
         case /* 1101000 */ 0x68: gen_fcvt_sx(dc, fd, ep, v1, vm, rs2); break;
