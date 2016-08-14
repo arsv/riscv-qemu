@@ -234,6 +234,18 @@ gpv HELPER(fcvt_wu_s)(ENV, fpv a, RM)
     return float32_to_uint32(a, FPS);
 }
 
+fpv HELPER(fcvt_s_l)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return int64_to_float32(a, FPS);
+}
+
+fpv HELPER(fcvt_s_lu)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return uint64_to_float32(a, FPS);
+}
+
 fpv HELPER(fcvt_s_w)(ENV, gpv a, RM)
 {
     set_rounding_mode(env, rm);

@@ -1164,6 +1164,8 @@ static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_s_wu(fd, ep, v1, vm); break;
+        case /* 00010 */ 2: gen_helper_fcvt_s_l(fd, ep, v1, vm); break;
+        case /* 00011 */ 3: gen_helper_fcvt_s_lu(fd, ep, v1, vm); break;
         default: gen_illegal(dc);
     }
 }

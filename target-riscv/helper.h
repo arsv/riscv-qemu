@@ -62,6 +62,8 @@ DEF_HELPER_FLAGS_3(fcvt_wu_s, 0, i64, env, i64, i32)
 DEF_HELPER_FLAGS_3(fcvt_l_d,  0, i64, env, i64, i32)
 DEF_HELPER_FLAGS_3(fcvt_lu_d, 0, i64, env, i64, i32)
 
+DEF_HELPER_FLAGS_3(fcvt_s_l,  0, i64, env, i64, i32)
+DEF_HELPER_FLAGS_3(fcvt_s_lu, 0, i64, env, i64, i32)
 DEF_HELPER_FLAGS_3(fcvt_s_w,  0, i64, env, i64, i32)
 DEF_HELPER_FLAGS_3(fcvt_s_wu, 0, i64, env, i64, i32)
 DEF_HELPER_FLAGS_3(fcvt_d_l,  0, i64, env, i64, i32)
