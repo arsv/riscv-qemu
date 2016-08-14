@@ -373,7 +373,7 @@ static void gen_mulhu(TCGv vd, TCGv vs1, TCGv vs2)
 
 /* Signed x unsigned case, not implemented in TCG.
    Workaround: (-s * u) = -(s * u) = ~(s * u) + 1.
-   The final addition is two-word long. */
+   The final addition is two words long. */
 
 static void gen_mulhsu(TCGv vd, TCGv vs1, TCGv vs2)
 {
@@ -545,8 +545,7 @@ static void gen_sltu(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_gen_setcond_tl(TCG_COND_LTU, vd, vs1, vs2);
 }
 
-/* Register arithmetics: rd = rs1 op rs2
-   ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND. */
+/* Register arithmetics: rd = rs1 op rs2 */
 
 static void gen_op(DC, uint32_t insn)
 {
@@ -1033,7 +1032,7 @@ static void gen_storefp(DC, uint32_t insn)
     if(imm) tcg_temp_free(va);
 }
 
-/* Fused multiply-add: rd = ±(rs1 x rs2 ± rs3); FMADD, FMSUB, FNMADD, FNMSUB.
+/* Fused multiply-add: rd = ±(rs1 x rs2 ± rs3)
    Lots of common code make it easier to funnel all four major opcodes here
    and do a big switch on size-op combo. */
 
@@ -1181,7 +1180,8 @@ static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     }
 }
 
-/* FMV are just moves, but they share major opcodes with FCLASS. */
+/* FMV are just moves, but they share major opcodes with FCLASS
+   and those do need helpers. */
 
 static void gen_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
 {

@@ -76,9 +76,8 @@ static void rv_set_fcsr(ENV, unsigned val)
 }
 
 /* Primary CSR tables.
-
-   Omitting read-only registers from the write table ensures EXCP_ILLEGAL
-   on any write attempt. There are not other checks for ro/rw status. */
+   RW registers should appear in both tables, RO only in rv_get_csr().
+   There are not other checks for RO/RW status. */
 
 static target_ulong rv_get_csr(ENV, unsigned csr)
 {
@@ -104,7 +103,10 @@ static void rv_set_csr(ENV, unsigned csr, target_ulong val)
 #define RS 2
 #define RC 3
 
-/* insn is the instruction being handled here, major opcode SYSTEM. */
+/* Unlike most other helpers, this one gets non-decoded isns.
+   Some decoding would happen here anyway, and there's a lot
+   of common code for the six CSR ops, so no point in doing
+   much in translate.c */
 
 void HELPER(csr)(ENV, uint32_t insn)
 {

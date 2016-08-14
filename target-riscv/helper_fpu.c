@@ -9,6 +9,15 @@
 #define gpv uint64_t                /* GP register value type */
 #define RM uint32_t rm
 
+/* All FP ops that round values have rounding mode encoded in insn.
+   For softfloat, it's a global setting instead of per-op parameter,
+   so each RISC-V op starts with a call to set_rounding_mode.
+
+   The value of 111 means "use default", which is env->frm.
+   Per spec, writing illegal values to frm is allowed, and exception
+   should only be raised on the first FP op that tries to use that
+   value. */
+
 static void set_rounding_mode(ENV, uint32_t rm)
 {
     unsigned effective = (rm == /* 111 */ 7) ? env->frm : rm;
