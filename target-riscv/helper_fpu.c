@@ -44,14 +44,15 @@ fpv HELPER(fmsub_s)(ENV, fpv a, fpv b, fpv c, RM)
 
 fpv HELPER(fnmadd_s)(ENV, fpv a, fpv b, fpv c, RM)
 {
-    int flags = float_muladd_negate_result;
+    /* negate-result means -(a*b) in softfloat, not -(a*b + c) */
+    int flags = float_muladd_negate_result | float_muladd_negate_c;
     set_rounding_mode(env, rm);
     return float32_muladd(a, b, c, flags, FPS);
 }
 
 fpv HELPER(fnmsub_s)(ENV, fpv a, fpv b, fpv c, RM)
 {
-    int flags = float_muladd_negate_c | float_muladd_negate_result;
+    int flags = float_muladd_negate_result;
     set_rounding_mode(env, rm);
     return float32_muladd(a, b, c, flags, FPS);
 }
