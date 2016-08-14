@@ -240,7 +240,8 @@ gpv HELPER(fcvt_w_s)(ENV, fpv a, RM)
 gpv HELPER(fcvt_wu_s)(ENV, fpv a, RM)
 {
     set_rounding_mode(env, rm);
-    return float32_to_uint32(a, FPS);
+    /* sign-extend for RV64 */
+    return (int32_t)float32_to_uint32(a, FPS);
 }
 
 gpv HELPER(fcvt_l_s)(ENV, fpv a, RM)
@@ -290,7 +291,8 @@ gpv HELPER(fcvt_w_d)(ENV, fpv a, RM)
 gpv HELPER(fcvt_wu_d)(ENV, fpv a, RM)
 {
     set_rounding_mode(env, rm);
-    return float64_to_uint32(a, FPS);
+    /* sign-extend for RV64 */
+    return (int32_t)float64_to_uint32(a, FPS);
 }
 
 gpv HELPER(fcvt_l_d)(ENV, fpv a, RM)
