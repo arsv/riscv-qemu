@@ -281,6 +281,19 @@ static void gen_opimm(DC, uint32_t insn)
     if(!rd) tcg_temp_free(vd);
 }
 
+static void gen_srxiw(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
+{
+    if(flags & ~(1<<4)) {
+        gen_illegal(dc);
+    } else if(flags & (1<<4)) {
+        tcg_gen_ext32s_tl(vd, vs);
+        tcg_gen_sari_tl(vd, vd, shamt);
+    } else {
+        tcg_gen_ext32u_tl(vd, vs);
+        tcg_gen_shri_tl(vd, vd, shamt);
+    }
+}
+
 /* Like OPIMM but with 32-bit words on RV64; ADDIW, SLLIW, SRLIW, SRAIW */
 
 static void gen_opimm32(DC, uint32_t insn)
@@ -297,7 +310,7 @@ static void gen_opimm32(DC, uint32_t insn)
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
         case /* 001 */ 1: gen_slli(dc, vd, vs, shamt, flags); break;
-        case /* 101 */ 5: gen_srxi(dc, vd, vs, shamt, flags); break;
+        case /* 101 */ 5: gen_srxiw(dc, vd, vs, shamt, flags); break;
         default: gen_illegal(dc); goto out;
     }
 
