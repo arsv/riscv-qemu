@@ -1145,6 +1145,8 @@ static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_wu_s(vd, ep, f1, vm); break;
+        case /* 00010 */ 2: gen_helper_fcvt_l_s(vd, ep, f1, vm); break;
+        case /* 00011 */ 3: gen_helper_fcvt_lu_s(vd, ep, f1, vm); break;
         default: gen_illegal(dc);
     }
 }
@@ -1152,6 +1154,8 @@ static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
 static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
+        case /* 00000 */ 0: gen_helper_fcvt_w_d(vd, ep, f1, vm); break;
+        case /* 00001 */ 1: gen_helper_fcvt_wu_d(vd, ep, f1, vm); break;
         case /* 00010 */ 2: gen_helper_fcvt_l_d(vd, ep, f1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_lu_d(vd, ep, f1, vm); break;
         default: gen_illegal(dc);
