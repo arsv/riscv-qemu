@@ -1293,14 +1293,12 @@ static void gen_opfp(DC, uint32_t insn)
     tcg_temp_free_i32(vm);
 }
 
-/* Instructions are decoded in two jumps: major opcode first,
+/* Most insns are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
    This makes encoding irregularities way easier to handle
    but requires each major opcode handler to gen EXCP_ILLEGAL
-   on its own if necessary.
-
-   Any path that generates no code and no exceptions results
-   in a silent nop.
+   on its own if necessary. Any path that generates no code
+   and no exceptions results in a silent nop.
 
    Opcode values are "named" via function names next to them.
    Using symbolic constants instead of numeric opcode values
