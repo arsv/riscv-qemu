@@ -41,6 +41,7 @@ static TCGv_env cpu_env;
 static TCGv cpu_pc;
 static TCGv cpu_gpr[32];
 static TCGv cpu_fpr[32];
+static TCGv_i32 cpu_amoinsn;
 
 /* FIXME: it is wrong to assume sizeof(fpr) == sizeof(gpr), in particular
    RV32 is likely to have 64-bit floats (RV32D), but for now the implementation
@@ -102,6 +103,10 @@ void riscv_translate_init(void)
         cpu_fpr[i] = tcg_global_mem_new(cpu_env,
                         offsetof(CPURISCVState, fpr[i]),
                         riscv_fprnames[i]);
+
+    cpu_amoinsn = tcg_global_mem_new_i32(cpu_env,
+                    offsetof(CPURISCVState, amoinsn),
+                    "amoinsn");
 }
 
 void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
@@ -990,6 +995,21 @@ static void gen_system(DC, uint32_t insn)
     tcg_temp_free_i32(temp);
 }
 
+/* In linux-user mode, AMOs stop all virtual cores to ensure exclusivity.
+   See atomic.c, and linux-user/main.c for EXCP_ATOMIC. All decoding gets
+   relegated there as well.
+
+   In system mode, only one core is running at any given time, so AMOs are
+   just regular TCG ops. */
+
+static void gen_amo(DC, uint32_t insn)
+{
+    tcg_gen_movi_i32(cpu_amoinsn, insn);
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
+    gen_exception(dc, EXCP_ATOMIC);
+    dc->jump = true;
+}
+
 /* Like LOAD but writes to fpr instead of gpr.
    And f0 is a regular register, not a sink. */
 
@@ -1321,6 +1341,7 @@ static void gen_one_insn(DC, uint32_t insn)
         case /* 0111011 */ 0x3B: gen_op32(dc, insn); break;
         case /* 1110011 */ 0x73: gen_system(dc, insn); break;
         case /* 0001111 */ 0x0F: gen_miscmem(dc, insn); break;
+        case /* 0101111 */ 0x2F: gen_amo(dc, insn); break;
         case /* 0000111 */ 0x07: gen_loadfp(dc, insn); break;
         case /* 0100111 */ 0x27: gen_storefp(dc, insn); break;
         case /* 1000011 */ 0x43: gen_fmadd(dc, insn); break;

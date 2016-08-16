@@ -36,6 +36,12 @@
 #define EXCP_ILLEGAL      1   /* illegal instruction */
 #define EXCP_SYSCALL      2   /* linux syscall (ecall in linux-user mode) */
 #define EXCP_FAULT        3   /* unmapped mem access */
+#define EXCP_ATOMIC       4   /* AMO handling request */
+
+/* Return codes for riscv_cpu_do_userspace_amo */
+#define RISCV_AMO_OK      0
+#define RISCV_AMO_BADINSN 1
+#define RISCV_AMO_BADADDR 2
 
 /* Special names for registers */
 
@@ -89,7 +95,13 @@ typedef struct CPURISCVState {
     target_float fpr[32];
 
     float_status fpstatus;
-    unsigned frm;
+    unsigned frm;		/* CSR fp rounding mode */
+
+    target_ulong sbadaddr;
+
+    uint32_t amoinsn;
+    target_long amoaddr;
+    target_long amotest;
 
     CPU_COMMON
 
@@ -119,6 +131,8 @@ void riscv_cpu_dump_state(CPUState *cs,
 
 int riscv_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int riscv_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
+
+int riscv_cpu_do_usermode_amo(CPUState* cs);
 
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))

@@ -3781,6 +3781,7 @@ void cpu_loop(CPURISCVState *env)
 {
     CPUState *cs = CPU(riscv_env_get_cpu(env));
     int trapnr, signum, sigcode;
+    target_ulong sigaddr;
     target_ulong ret;
 
     for (;;) {
@@ -3790,6 +3791,7 @@ void cpu_loop(CPURISCVState *env)
 
         signum = 0;
         sigcode = 0;
+        sigaddr = 0;
 
         switch (trapnr) {
         case EXCP_INTERRUPT:
@@ -3813,6 +3815,23 @@ void cpu_loop(CPURISCVState *env)
             } if(cs->singlestep_enabled) {
                 goto gdbstep;
             }
+            break;
+        case EXCP_ATOMIC:
+            start_exclusive();
+            switch(riscv_cpu_do_usermode_amo(cs)) {
+                case RISCV_AMO_OK:
+                    env->pc += 4;
+                    break;
+                case RISCV_AMO_BADADDR:
+                    signum = TARGET_SIGSEGV;
+                    sigcode = TARGET_SEGV_MAPERR;
+                    sigaddr = env->sbadaddr;
+                case RISCV_AMO_BADINSN:
+                default:
+                    signum = TARGET_SIGILL;
+                    sigcode = TARGET_ILL_ILLOPC;
+            }
+            end_exclusive();
             break;
         case EXCP_ILLEGAL:
             signum = TARGET_SIGILL;
@@ -3838,6 +3857,7 @@ void cpu_loop(CPURISCVState *env)
                 .si_signo = signum,
                 .si_errno = 0,
                 .si_code = sigcode,
+                ._sifields._sigfault._addr = sigaddr
             };
             queue_signal(env, info.si_signo, &info);
         }
