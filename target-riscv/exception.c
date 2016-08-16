@@ -1,5 +1,5 @@
 /*
- * RISC-V exception.
+ * RISC-V cpu loop exception
  *
  * Copyright (c) 2016 Alex Suykov <alex.suykov@gmail.com>
  *

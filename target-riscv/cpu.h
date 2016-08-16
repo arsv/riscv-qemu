@@ -1,5 +1,5 @@
 /*
- * RISC-V virtual CPU header.
+ * RISC-V virtual CPU
  *
  * Copyright (c) 2016 Alex Suykov <alex.suykov@gmail.com>
  *
