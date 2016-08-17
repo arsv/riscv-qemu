@@ -30,17 +30,13 @@ Coverage and status
 RV64 user mode emulation (qemu-riscv) builds and runs some executables.
 System mode emulation is not supported yet.
 
-Extensions M, F and D (mul/div, float, double) are implemented.
-Extensions A and C (AMO, compresses instructions) are not supported yet.
+Extensions A, M, F, D and C are implemented for RV64.
+No support for RV32 yet.
 Most CSRs are not properly supported, including mandatory counters.
-
-RV32 is not supported.
-Disabling already-implemented extensions is not possible yet.
 
 GDB remote debugging works.
 
-Current plans: extensions A and C, RV32, system mode, roughly in that order,
-possibly with minor tweaks in-between them.
+Current plans: RV32, system mode.
 
 
 Building
