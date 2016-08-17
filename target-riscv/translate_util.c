@@ -30,9 +30,7 @@ static void gen_illegal(DC)
 static void gen_exit_tb(DC)
 {
     if(dc->singlestep) {
-        TCGv_i32 tmp = tcg_const_i32(EXCP_DEBUG);
-        gen_helper_exception(cpu_env, tmp);
-        tcg_temp_free_i32(tmp);
+        gen_exception(dc, EXCP_DEBUG);
     } else {
         tcg_gen_exit_tb(0);
     }
