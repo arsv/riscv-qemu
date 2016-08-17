@@ -53,7 +53,7 @@ int riscv_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
             env->pc = ldl_p(mem_buf);
             return sizeof(target_long);
         case 33 ... 64:
-            env->fpr[n] = ldl_p(mem_buf);
+            env->fpr[n-33] = ldl_p(mem_buf);
             return sizeof(target_long); /* target_float actually */
         default:
             return 0;
