@@ -328,10 +328,8 @@ static void gen_op32(DC, uint32_t insn)
    the idea of all RISC-V code being position independent by design.
 
    The lowest bit of imm is not encoded, and assumed to be zero.
-   Bit 1 may be allowed to be non-zero if two-byte opcodes are
-   supported (extension C) but they are not at this point.
-   With extension C support enabled, JAL never generates any
-   exceptions at all. */
+   Bit 1 is allowed to be non-zero now with two-byte opcodes implemented,
+   so JAL never generates any exceptions at all. */
 
 static void gen_jal(DC, uint32_t insn)
 {
@@ -343,11 +341,6 @@ static void gen_jal(DC, uint32_t insn)
 
     if(BITFIELD(insn, 31, 31)) /* sign bit */
         imm |= (-1 << 19);
-
-    if(imm & 3) {
-        gen_illegal(dc);
-        return;
-    }
 
     if(rd) /* JAL x0 is a plain jump */
         tcg_gen_movi_tl(cpu_gpr[rd], dc->pc + 4);
@@ -433,11 +426,6 @@ static void gen_branch(DC, uint32_t insn)
 
     if(insn & (1<<31))
         imm |= (-1 << 12);                          /* 12, sign bit */
-
-    if(imm & 3) {
-        gen_illegal(dc);
-        return;
-    }
 
     TCGv vs1 = cpu_gpr[rs1];
     TCGv vs2 = cpu_gpr[rs2];

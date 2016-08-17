@@ -151,6 +151,7 @@ void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
 #include "translate_rvf.c"
 #include "translate_rvm.c"
 #include "translate_rvi.c"
+#include "translate_rvc.c"
 
 /* Most insns are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
@@ -164,7 +165,7 @@ void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
    does not add to readability, and makes checking against
    ISA listings way harder than it should be. */
 
-static void gen_one_insn(DC, uint32_t insn)
+static void gen_one_4byte_insn(DC, uint32_t insn)
 {
     switch(insn & 0x7F) {
         case /* 0110111 */ 0x37: gen_lui(dc, insn); break;
@@ -190,6 +191,37 @@ static void gen_one_insn(DC, uint32_t insn)
         case /* 1010011 */ 0x53: gen_opfp(dc, insn); break;
         default: gen_illegal(dc);
     }
+}
+
+/* 4 byte insns are presumed to be much more frequent and the arch is
+   little-endian, so it makes a lot of sense to go for an optimistic
+   4-byte fetch. However, there's a nasty corner case with a 2-byte
+   insn located at the end of the last accessible page. That particular
+   very rare case must be handled carefuly to avoid illegal reads. */
+
+static int fetch_gen_one_insn(DC, CPURISCVState *env)
+{
+    uint32_t insn;
+    int poff = dc->pc & ~TARGET_PAGE_MASK;
+
+    if(unlikely(poff == ~TARGET_PAGE_MASK - 1)) {
+        insn = cpu_lduw_code(env, dc->pc);
+        if((insn & 3) != 3)
+            goto twobyte;
+    }
+
+    insn = cpu_ldl_code(env, dc->pc);
+
+    if((insn & 3) != 3)
+        goto twobyte;
+
+    gen_one_4byte_insn(dc, insn);
+    return 4;
+
+twobyte:
+    insn &= 0xFFFF;
+    gen_one_2byte_insn(dc, insn);
+    return 2;
 }
 
 static int tblock_max_insns(struct TranslationBlock *tb)
@@ -231,11 +263,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
         if(unlikely(cpu_breakpoint_test(cs, dc->pc, BP_ANY)))
             gen_breakpoint(dc);
 
-        /* Assuming 4-byte insns only for now */
-        uint32_t insn = cpu_ldl_code(&cpu->env, dc->pc);
-        gen_one_insn(dc, insn);
-
-        dc->pc += 4;
+        dc->pc += fetch_gen_one_insn(dc, &cpu->env);
 
         if(dc->jump || dc->singlestep)
             break;

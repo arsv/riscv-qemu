@@ -45,6 +45,7 @@
 
 /* Special names for registers */
 
+#define xRA 1	/* gpr[1] holds return address (aka link register) */
 #define xSP 2	/* gpr[2] is stack pointer */
 #define xGP 3	/* gpr[2] is global pointer */
 #define xTP 4	/* gpr[2] is thread pointer */
