@@ -47,7 +47,8 @@
 
 typedef struct DisasContext {
     TranslationBlock *tb;
-    target_ulong pc;
+    target_ulong pc;  /* current pc, the insn being decoded */
+    target_ulong npc; /* next pc, skips instruction being decoded */
     bool jump;
     bool singlestep;
 } DisasContext;
@@ -75,6 +76,11 @@ static TCGv_i32 cpu_amoinsn;
 #define BITFIELD(src, end, start) \
             (((src) >> start) & ((1 << (end - start + 1)) - 1))
 #define SIGNBIT ((target_long)1 << (TARGET_LONG_BITS - 1))
+
+/* Arguments for gen_exit_tb(), see comments there */
+#define EXIT_TB_DOWN 0
+#define EXIT_TB_SIDE 1
+#define ADDRESS_UNKNOWN 0
 
 /* Register x0 is a zero-sink, always reads as 0 and writes there are ignored.
    Within qemu, it's an allocated TCGv holding 0, used directly for any read
@@ -199,12 +205,11 @@ static void gen_one_4byte_insn(DC, uint32_t insn)
    insn located at the end of the last accessible page. That particular
    very rare case must be handled carefuly to avoid illegal reads. */
 
-static int fetch_gen_one_insn(DC, CPURISCVState *env)
+static void fetch_gen_one_insn(DC, CPURISCVState *env)
 {
     uint32_t insn;
-    int poff = dc->pc & ~TARGET_PAGE_MASK;
 
-    if(unlikely(poff == ~TARGET_PAGE_MASK - 1)) {
+    if(unlikely((dc->pc & ~TARGET_PAGE_MASK) == (~TARGET_PAGE_MASK - 1))) {
         insn = cpu_lduw_code(env, dc->pc);
         if((insn & 3) != 3)
             goto twobyte;
@@ -215,13 +220,17 @@ static int fetch_gen_one_insn(DC, CPURISCVState *env)
     if((insn & 3) != 3)
         goto twobyte;
 
+    dc->npc = dc->pc + 4;
     gen_one_4byte_insn(dc, insn);
-    return 4;
+    dc->pc = dc->npc;
+    return;
 
 twobyte:
     insn &= 0xFFFF;
+    dc->npc = dc->pc + 2;
     gen_one_2byte_insn(dc, insn);
-    return 2;
+    dc->pc = dc->npc;
+    return;
 }
 
 static int tblock_max_insns(struct TranslationBlock *tb)
@@ -263,7 +272,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
         if(unlikely(cpu_breakpoint_test(cs, dc->pc, BP_ANY)))
             gen_breakpoint(dc);
 
-        dc->pc += fetch_gen_one_insn(dc, &cpu->env);
+        fetch_gen_one_insn(dc, &cpu->env);
 
         if(dc->jump || dc->singlestep)
             break;
@@ -271,10 +280,8 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
             break;
     } while ((num_insns++ < max_insns) && !tcg_op_buf_full());
 
-    if(!dc->jump) {
-        tcg_gen_movi_tl(cpu_pc, dc->pc);
-        gen_exit_tb(dc);
-    }
+    if(!dc->jump)
+        gen_exit_tb(dc, EXIT_TB_DOWN, dc->pc);
 
     gen_tb_end(tb, num_insns);
 

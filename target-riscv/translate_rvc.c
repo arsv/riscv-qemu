@@ -116,10 +116,7 @@ static void gen_clui(DC, uint16_t insn)
 static void gen_cj(DC, uint16_t insn)
 {
     int imm = rv_cj_imm(insn);
-
-    tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_exit_tb(dc);
-    dc->jump = true;
+    gen_exit_tb(dc, EXIT_TB_DOWN, dc->pc + imm);
 }
 
 /* Opcode 100.10 (quadrant 2 func=100): add, rr move, j(al)r or ebreak */
@@ -134,8 +131,7 @@ static void gen_cjr(DC, unsigned rs)
     TCGv va = temp_new_andi(cpu_gpr[rs], -2);
 
     tcg_gen_mov_tl(cpu_pc, cpu_gpr[rs]);
-    gen_exit_tb(dc);
-    dc->jump = true;
+    gen_exit_tb(dc, EXIT_TB_DOWN, ADDRESS_UNKNOWN);
 
     tcg_temp_free(va);
 }
@@ -147,7 +143,7 @@ static void gen_cadd(unsigned rd, unsigned rs)
 
 static void gen_cjalr(DC, unsigned rs)
 {
-    tcg_gen_movi_tl(cpu_gpr[xRA], dc->pc + 2);
+    tcg_gen_movi_tl(cpu_gpr[xRA], dc->npc);
     gen_cjr(dc, rs);
 }
 
@@ -189,10 +185,10 @@ static void gen_cbranch(DC, uint16_t insn, int predicate)
 
     TCGLabel* skip = gen_new_label();
     tcg_gen_brcond_tl(predicate, vs, zero, skip);
-    tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_exit_tb(dc);
+    gen_exit_tb(dc, EXIT_TB_SIDE, dc->pc + imm);
 
     gen_set_label(skip);
+    gen_exit_tb(dc, EXIT_TB_SIDE, dc->npc);
 }
 
 static void gen_cbeqz(DC, uint16_t insn)

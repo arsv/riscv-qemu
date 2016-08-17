@@ -343,12 +343,9 @@ static void gen_jal(DC, uint32_t insn)
         imm |= (-1 << 19);
 
     if(rd) /* JAL x0 is a plain jump */
-        tcg_gen_movi_tl(cpu_gpr[rd], dc->pc + 4);
+        tcg_gen_movi_tl(cpu_gpr[rd], dc->npc);
 
-    tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_exit_tb(dc);
-
-    dc->jump = true;
+    gen_exit_tb(dc, EXIT_TB_DOWN, dc->pc + imm);
 }
 
 /* Jump And Link Register: rd = pc, pc += rs + imm
@@ -369,7 +366,7 @@ static void gen_jalr(DC, uint32_t insn)
     /* func field (14:12) is apparently ignored? */
 
     if(rd) /* JALR x0 is a plain indirect jump */
-        tcg_gen_movi_tl(cpu_gpr[rd], dc->pc + 4);
+        tcg_gen_movi_tl(cpu_gpr[rd], dc->npc);
 
     TCGv va = tcg_temp_local_new();
 
@@ -394,8 +391,7 @@ static void gen_jalr(DC, uint32_t insn)
 
     /* We're clear, set PC */
     tcg_gen_mov_tl(cpu_pc, va);
-    gen_exit_tb(dc);
-    dc->jump = true;
+    gen_exit_tb(dc, EXIT_TB_DOWN, ADDRESS_UNKNOWN);
 
     tcg_temp_free(vx);
     tcg_temp_free(va);
@@ -441,10 +437,10 @@ static void gen_branch(DC, uint32_t insn)
         default: gen_illegal(dc); return;
     }
 
-    tcg_gen_movi_tl(cpu_pc, dc->pc + imm);
-    gen_exit_tb(dc);
+    gen_exit_tb(dc, EXIT_TB_SIDE, dc->pc + imm);
 
     gen_set_label(l);
+    gen_exit_tb(dc, EXIT_TB_DOWN, dc->npc);
 }
 
 /* Memory load: rd = [rs + imm]; LB, LH, LW, LD, LBU, LHU */

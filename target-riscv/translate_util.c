@@ -27,13 +27,35 @@ static void gen_illegal(DC)
     dc->jump = true;
 }
 
-static void gen_exit_tb(DC)
+/* TB terminates on the first branch or jump encountered, so there's
+   always at most two exits from the TB: sideways (taken branch) and
+   down (anything else). Exceptions terminate TBs as well but need no
+   gen_exit_tb because raise_exception does that itself.
+
+   A normal exit in gen_intermediate_code is handled like a jump
+   to the next pc.
+
+   Before exiting, each TB must write the address of the next insn
+   to env->pc to allow cpu_loop to continue. In most cases the address
+   is known statically. However, in jump-to-register insns (jr, jalr,
+   cjr, cjalr) it is not, so those instructions handle pc writes
+   on their own and pass ADDRESS_UNKNOWN here. */
+
+static void gen_exit_tb(DC, int n, target_ulong dest)
 {
+    if(dest != ADDRESS_UNKNOWN)
+        tcg_gen_movi_tl(cpu_pc, dest);
+    /* else jump target is determined at runtime and the proper
+       tcg_gen_mov*(cpu_pc, ...) has already been called */
+
     if(dc->singlestep) {
         gen_exception(dc, EXCP_DEBUG);
     } else {
         tcg_gen_exit_tb(0);
     }
+
+    if(n == EXIT_TB_DOWN)
+        dc->jump = true;
 }
 
 static void gen_breakpoint(DC)
