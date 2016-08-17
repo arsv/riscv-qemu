@@ -3832,6 +3832,9 @@ void cpu_loop(CPURISCVState *env)
                     sigcode = TARGET_ILL_ILLOPC;
             }
             end_exclusive();
+            if(cs->singlestep_enabled) {
+                goto gdbstep;
+            }
             break;
         case EXCP_ILLEGAL:
             signum = TARGET_SIGILL;
