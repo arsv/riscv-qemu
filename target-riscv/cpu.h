@@ -43,12 +43,12 @@
 #define RISCV_AMO_BADINSN 1
 #define RISCV_AMO_BADADDR 2
 
-/* Special names for registers */
+/* Special names for GPRs */
 
-#define xRA 1	/* gpr[1] holds return address (aka link register) */
-#define xSP 2	/* gpr[2] is stack pointer */
-#define xGP 3	/* gpr[2] is global pointer */
-#define xTP 4	/* gpr[2] is thread pointer */
+#define xRA 1   /* return address (aka link register) */
+#define xSP 2   /* stack pointer */
+#define xGP 3   /* global pointer */
+#define xTP 4   /* thread pointer */
 
 #define xA0 10  /* gpr[10-17] are syscall arguments */
 #define xA1 11
