@@ -41,6 +41,11 @@ static void gen_illegal(DC)
    cjr, cjalr) it is not, so those instructions handle pc writes
    on their own and pass ADDRESS_UNKNOWN here. */
 
+static bool rv_can_jump_to(DC, target_ulong dest)
+{
+    return (dc->pc & TARGET_PAGE_MASK) == (dest & TARGET_PAGE_MASK);
+}
+
 static void gen_exit_tb(DC, int n, target_ulong dest)
 {
     if(dest != ADDRESS_UNKNOWN)
@@ -50,6 +55,9 @@ static void gen_exit_tb(DC, int n, target_ulong dest)
 
     if(dc->singlestep) {
         gen_exception(dc, EXCP_DEBUG);
+    } else if(dest != ADDRESS_UNKNOWN && rv_can_jump_to(dc, dest)) {
+        tcg_gen_goto_tb(n);
+        tcg_gen_exit_tb((uintptr_t)dc->tb + n);
     } else {
         tcg_gen_exit_tb(0);
     }
