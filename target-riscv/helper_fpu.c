@@ -24,9 +24,14 @@
 
 #define ENV CPURISCVState *env      /* CPU state environment */
 #define FPS &env->fpstatus          /* FP status (softfloat internal state) */
-#define fpv uint64_t                /* FP register value type */
-#define gpv uint64_t                /* GP register value type */
 #define RM uint32_t rm
+
+#if TARGET_LONG_BITS == 32
+#define gpv uint32_t                /* RV32 GP register value type */
+#else
+#define gpv uint64_t                /* RV64 GP register value type */
+#endif
+#define fpv uint64_t                /* RV*D FP register value type */
 
 /* All FP ops that round values have rounding mode encoded in insn.
    For softfloat, it's a global setting instead of per-op parameter,
@@ -192,17 +197,17 @@ fpv HELPER(fmax_s)(ENV, fpv a, fpv b)
     return float32_maxnum(a, b, FPS);
 }
 
-fpv HELPER(flt_s)(ENV, fpv a, fpv b)
+gpv HELPER(flt_s)(ENV, fpv a, fpv b)
 {
     return float32_lt(a, b, FPS);
 }
 
-fpv HELPER(fle_s)(ENV, fpv a, fpv b)
+gpv HELPER(fle_s)(ENV, fpv a, fpv b)
 {
     return float32_le(a, b, FPS);
 }
 
-fpv HELPER(feq_s)(ENV, fpv a, fpv b)
+gpv HELPER(feq_s)(ENV, fpv a, fpv b)
 {
     return float32_eq(a, b, FPS);
 }
@@ -219,17 +224,17 @@ fpv HELPER(fmax_d)(ENV, fpv a, fpv b)
     return float64_maxnum(a, b, FPS);
 }
 
-fpv HELPER(flt_d)(ENV, fpv a, fpv b)
+gpv HELPER(flt_d)(ENV, fpv a, fpv b)
 {
     return float64_lt(a, b, FPS);
 }
 
-fpv HELPER(fle_d)(ENV, fpv a, fpv b)
+gpv HELPER(fle_d)(ENV, fpv a, fpv b)
 {
     return float64_le(a, b, FPS);
 }
 
-fpv HELPER(feq_d)(ENV, fpv a, fpv b)
+gpv HELPER(feq_d)(ENV, fpv a, fpv b)
 {
     return float64_eq(a, b, FPS);
 }

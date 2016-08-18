@@ -15,11 +15,11 @@ static void gen_loadfp(DC, uint32_t insn)
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs], imm) : cpu_gpr[rs];
-    TCGv vd = cpu_fpr[rd];
+    TCGf vd = cpu_fpr[rd];
 
     switch(BITFIELD(insn, 14, 12)) {
-        case /* 010 */ 2: tcg_gen_qemu_ld32u(vd, va, memidx); break;
-        case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
+        case /* 010 */ 2: tcg_gen_qemu_ld_i64(vd, va, memidx, MO_TEUL); break;
+        case /* 011 */ 3: tcg_gen_qemu_ld_i64(vd, va, memidx, MO_TEQ); break;
         default: gen_illegal(dc);
     }
 
@@ -35,11 +35,11 @@ static void gen_storefp(DC, uint32_t insn)
     unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
-    TCGv vs = cpu_fpr[rs2];
+    TCGf vs = cpu_fpr[rs2];
 
     switch(BITFIELD(insn, 14, 12)) {
-        case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
-        case /* 011 */ 3: tcg_gen_qemu_st64(vs, va, memidx); break;
+        case /* 010 */ 2: tcg_gen_qemu_st_i64(vs, va, memidx, MO_TEUL); break;
+        case /* 011 */ 3: tcg_gen_qemu_st_i64(vs, va, memidx, MO_TEQ); break;
         default: gen_illegal(dc);
     }
 
@@ -62,10 +62,10 @@ static void gen_fmadd(DC, uint32_t insn)
             (BITFIELD(insn, 26, 25) << 2) | /* 00=float32, 01=float64 */
             (BITFIELD(insn, 3, 2));         /* 00=FMADD, ..., 11=FNMSUB */
 
-    TCGv fd = cpu_fpr[rd];
-    TCGv f1 = cpu_fpr[rs1];
-    TCGv f2 = cpu_fpr[rs2];
-    TCGv f3 = cpu_fpr[rs3];
+    TCGf fd = cpu_fpr[rd];
+    TCGf f1 = cpu_fpr[rs1];
+    TCGf f2 = cpu_fpr[rs2];
+    TCGf f3 = cpu_fpr[rs3];
     TCGv_ptr ep = cpu_env;
     TCGv_i32 vm = tcg_const_i32(rm);
 
@@ -90,29 +90,29 @@ static void gen_fmadd(DC, uint32_t insn)
 
    The code below depends on tl == i64 and TCGv == TCGv_i64. */
 
-static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int floatwidth)
+static void gen_fsgnj(DC, TCGf fd, TCGf f1, TCGf f2, int rm, int floatwidth)
 {
-    TCGv sign = tcg_temp_new();
-    TCGv base = tcg_temp_new();
+    TCGf sign = tcg_temp_new_i64();
+    TCGf base = tcg_temp_new_i64();
 
-    target_long signmask = ((target_float)1 << (floatwidth-1));
-    target_long basemask = ((target_float)-1) & ~signmask;
+    target_float signmask = ((target_float)1 << (floatwidth-1));
+    target_float basemask = ((target_float)-1) & ~signmask;
 
-    tcg_gen_andi_tl(sign, f2, signmask);
-    tcg_gen_andi_tl(base, f1, basemask);
+    tcg_gen_andi_i64(sign, f2, signmask);
+    tcg_gen_andi_i64(base, f1, basemask);
 
     switch(rm) {
-        case /* 001 */ 1: tcg_gen_xori_tl(sign, sign, signmask);
-        case /* 000 */ 0: tcg_gen_or_tl(fd, base, sign); break;
-        case /* 010 */ 2: tcg_gen_xor_tl(fd, f1, sign); break;
+        case /* 001 */ 1: tcg_gen_xori_i64(sign, sign, signmask);
+        case /* 000 */ 0: tcg_gen_or_i64(fd, base, sign); break;
+        case /* 010 */ 2: tcg_gen_xor_i64(fd, f1, sign); break;
         default: gen_illegal(dc);
     }
 
-    tcg_temp_free(base);
-    tcg_temp_free(sign);
+    tcg_temp_free_i64(base);
+    tcg_temp_free_i64(sign);
 }
 
-static void gen_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fminmax_s(DC, TCGf fd, TCGv_ptr ep, TCGf f1, TCGf f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_s(fd, ep, f1, f2); break;
@@ -121,7 +121,7 @@ static void gen_fminmax_s(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void gen_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fminmax_d(DC, TCGf fd, TCGv_ptr ep, TCGf f1, TCGf f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fmin_d(fd, ep, f1, f2); break;
@@ -130,7 +130,7 @@ static void gen_fminmax_d(DC, TCGv fd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void gen_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGf f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fle_s(vd, ep, f1, f2); break;
@@ -140,7 +140,7 @@ static void gen_fcmp_s(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
     }
 }
 
-static void gen_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
+static void gen_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGf f2, int rm)
 {
     switch(rm) {
         case /* 000 */ 0: gen_helper_fle_d(vd, ep, f1, f2); break;
@@ -154,7 +154,7 @@ static void gen_fcmp_d(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv f2, int rm)
    non-intersecting rs2 ranges. It would be possible to merge xs+xd and
    sx+dx if not for the need to signal invalid func:rs2 combos. */
 
-static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
@@ -165,7 +165,7 @@ static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_d(vd, ep, f1, vm); break;
@@ -176,7 +176,7 @@ static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGv f1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_sx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
@@ -187,7 +187,7 @@ static void gen_fcvt_sx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     }
 }
 
-static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_dx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_d_w(fd, ep, v1, vm); break;
@@ -201,7 +201,7 @@ static void gen_fcvt_dx(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 /* FMV are just moves, but they share major opcodes with FCLASS
    and those do need helpers. */
 
-static void gen_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
+static void gen_fmv_xs(DC, TCGv vd, TCGf f1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
@@ -210,7 +210,7 @@ static void gen_fmv_xs(DC, TCGv vd, TCGv f1, unsigned rm)
     }
 }
 
-static void gen_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
+static void gen_fmv_xd(DC, TCGv vd, TCGf f1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(vd, f1); break;
@@ -219,7 +219,7 @@ static void gen_fmv_xd(DC, TCGv vd, TCGv f1, unsigned rm)
     }
 }
 
-static void gen_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
+static void gen_fmv_sx(DC, TCGf fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
@@ -227,7 +227,7 @@ static void gen_fmv_sx(DC, TCGv fd, TCGv v1, unsigned rm)
     }
 }
 
-static void gen_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
+static void gen_fmv_dx(DC, TCGf fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
         case /* 000 */ 0: tcg_gen_mov_tl(fd, v1); break;
@@ -235,18 +235,18 @@ static void gen_fmv_dx(DC, TCGv fd, TCGv v1, unsigned rm)
     }
 }
 
-static void gen_fcvt_sd(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_sd(DC, TCGf fd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
-        case /* 00001 */ 1: gen_helper_fcvt_s_d(fd, ep, v1, vm); break;
+        case /* 00001 */ 1: gen_helper_fcvt_s_d(fd, ep, f1, vm); break;
         default: gen_illegal(dc);
     }
 }
 
-static void gen_fcvt_ds(DC, TCGv fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
+static void gen_fcvt_ds(DC, TCGf fd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
 {
     switch(rs2) {
-        case /* 00000 */ 0: gen_helper_fcvt_d_s(fd, ep, v1, vm); break;
+        case /* 00000 */ 0: gen_helper_fcvt_d_s(fd, ep, f1, vm); break;
         default: gen_illegal(dc);
     }
 }
@@ -261,9 +261,9 @@ static void gen_opfp(DC, uint32_t insn)
 
     TCGv_ptr ep = cpu_env;
 
-    TCGv fd = cpu_fpr[rd];
-    TCGv f1 = cpu_fpr[rs1];
-    TCGv f2 = cpu_fpr[rs2];
+    TCGf fd = cpu_fpr[rd];
+    TCGf f1 = cpu_fpr[rs1];
+    TCGf f2 = cpu_fpr[rs2];
 
     TCGv vd = cpu_gpr[rd];
     TCGv v1 = cpu_gpr[rs1];

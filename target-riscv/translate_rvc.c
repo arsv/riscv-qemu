@@ -207,10 +207,9 @@ static void gen_cbnez(DC, uint16_t insn)
    Beware thses functions look similar but differ slightly in imm encoding,
    registers (gpr, fpr; may be of different size) and load/store size. */
 
-static TCGv rv_cl_register(uint16_t insn, TCGv regs[])
+static unsigned rv_cl_regnum(uint16_t insn)
 {
-    unsigned rd = 8 + BITFIELD(insn, 4, 2);
-    return regs[rd];
+    return 8 + BITFIELD(insn, 4, 2);
 }
 
 static TCGv rv_cl_address(uint16_t insn, int imm)
@@ -241,7 +240,7 @@ static TCGv rv_cl_address_d(uint16_t insn)
 
 static void gen_clw(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_w(insn);
     int memidx = 0;
     tcg_gen_qemu_ld32s(vr, va, memidx);
@@ -250,7 +249,7 @@ static void gen_clw(DC, uint16_t insn)
 
 static void gen_cld(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
     int memidx = 0;
     tcg_gen_qemu_ld64(vr, va, memidx);
@@ -259,16 +258,16 @@ static void gen_cld(DC, uint16_t insn)
 
 static void gen_cfld(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_fpr);
+    TCGf vd = cpu_fpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
     int memidx = 0;
-    tcg_gen_qemu_ld64(vr, va, memidx);
+    tcg_gen_qemu_ld64(vd, va, memidx);
     tcg_temp_free(va);
 }
 
 static void gen_csw(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_w(insn);
     int memidx = 0;
     tcg_gen_qemu_st32(vr, va, memidx);
@@ -277,7 +276,7 @@ static void gen_csw(DC, uint16_t insn)
 
 static void gen_csd(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
     int memidx = 0;
     tcg_gen_qemu_st64(vr, va, memidx);
@@ -286,7 +285,7 @@ static void gen_csd(DC, uint16_t insn)
 
 static void gen_cfsd(DC, uint16_t insn)
 {
-    TCGv vr = rv_cl_register(insn, cpu_fpr);
+    TCGf vr = cpu_fpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
     int memidx = 0;
     tcg_gen_qemu_st64(vr, va, memidx);
@@ -348,16 +347,15 @@ static void gen_cfldsp(DC, uint16_t insn)
         (ONEBIT(insn, 12) << 5);
     int memidx = 0;
 
-    TCGv vd = cpu_fpr[rd];
+    TCGf vd = cpu_fpr[rd];
     TCGv va = rv_ci_sp_address(imm);
     tcg_gen_qemu_ld64(vd, va, memidx);
     tcg_temp_free(va);
 }
 
-static TCGv rv_css_register(uint16_t insn, TCGv regs[])
+static unsigned rv_css_regnum(uint16_t insn)
 {
-    unsigned rs = BITFIELD(insn, 6, 2);
-    return regs[rs];
+    return BITFIELD(insn, 6, 2);
 }
 
 static TCGv rv_css_address(unsigned off)
@@ -385,7 +383,7 @@ static TCGv rv_css_address_d(uint16_t insn)
 
 static void gen_cswsp(DC, uint16_t insn)
 {
-    TCGv vr = rv_css_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_w(insn);
     int memidx = 0;
     tcg_gen_qemu_st32(vr, va, memidx);
@@ -393,7 +391,7 @@ static void gen_cswsp(DC, uint16_t insn)
 
 static void gen_csdsp(DC, uint16_t insn)
 {
-    TCGv vr = rv_css_register(insn, cpu_gpr);
+    TCGv vr = cpu_gpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_d(insn);
     int memidx = 0;
     tcg_gen_qemu_st64(vr, va, memidx);
@@ -401,7 +399,7 @@ static void gen_csdsp(DC, uint16_t insn)
 
 static void gen_cfsdsp(DC, uint16_t insn)
 {
-    TCGv vr = rv_css_register(insn, cpu_fpr);
+    TCGf vr = cpu_fpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_d(insn);
     int memidx = 0;
     tcg_gen_qemu_st64(vr, va, memidx);

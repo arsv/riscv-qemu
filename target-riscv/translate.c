@@ -65,10 +65,12 @@ typedef struct DisasContext {
 
 /* TCG references to CPU registers */
 
+typedef TCGv_i64 TCGf;
+
 static TCGv_env cpu_env;
 static TCGv cpu_pc;
 static TCGv cpu_gpr[32];
-static TCGv cpu_fpr[32];
+static TCGf cpu_fpr[32];
 static TCGv_i32 cpu_amoinsn;
 
 /* FIXME: it is wrong to assume sizeof(fpr) == sizeof(gpr), in particular
@@ -133,7 +135,7 @@ void riscv_translate_init(void)
                         offsetof(CPURISCVState, gpr[i]),
                         riscv_gprnames[i]);
     for(i = 0; i < 32; i++)
-        cpu_fpr[i] = tcg_global_mem_new(cpu_env,
+        cpu_fpr[i] = tcg_global_mem_new_i64(cpu_env,
                         offsetof(CPURISCVState, fpr[i]),
                         riscv_fprnames[i]);
 

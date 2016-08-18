@@ -72,7 +72,7 @@
 #include "fpu/softfloat.h"
 #include "qom/cpu.h"
 
-typedef float64 target_float;
+typedef float64 target_float; /* assuming RV64D/RV32D */
 
 #define TYPE_RISCV_CPU "riscv-cpu"
 
