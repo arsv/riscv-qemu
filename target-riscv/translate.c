@@ -33,8 +33,8 @@
 #include "trace-tcg.h"
 #include "exec/log.h"
 
-/* In this file, chunks of RISC-V code are translated into the native
-   code to be run on the host CPU. See
+/* In this file, chunks of RISC-V code are translated into native code
+   to be run on the host CPU. See
        http://wiki.qemu.org/Documentation/TCG
    on how it happens, and User-Level ISA Specification v2.1 from
        https://riscv.org/specifications/

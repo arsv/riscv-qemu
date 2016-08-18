@@ -394,8 +394,6 @@ gpv HELPER(fclass_s)(fpv a)
     }
 }
 
-/* Like float64_is_signaling_nan() but with snan_bit_is_one clear */
-
 static bool float64_is_signaling_nan_(float64 a)
 {
     return (((a >> 51) & 0xFFF) == 0xFFE) && (a & 0x0007FFFFFFFFFFFFLL);
@@ -405,8 +403,6 @@ static bool float64_is_quiet_nan_(float64 a)
 {
     return ((a << 1) >= 0xFFF0000000000000ULL);
 }
-
-/* Like fclass_d but with float64 instead of float32. */
 
 gpv HELPER(fclass_d)(fpv a)
 {
