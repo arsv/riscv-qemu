@@ -123,6 +123,7 @@ static void gen_cj(DC, uint16_t insn)
 
 static void gen_cmv(unsigned rd, unsigned rs)
 {
+    if(!rd) return;
     tcg_gen_mov_tl(cpu_gpr[rd], cpu_gpr[rs]);
 }
 
@@ -138,6 +139,7 @@ static void gen_cjr(DC, unsigned rs)
 
 static void gen_cadd(unsigned rd, unsigned rs)
 {
+    if(!rd) return;
     tcg_gen_add_tl(cpu_gpr[rd], cpu_gpr[rd], cpu_gpr[rs]);
 }
 
