@@ -8,11 +8,10 @@ This repo is not directly related to the official RISC-V qemu project
 found at https://github.com/riscv/riscv-qemu
 Major changes include:
 
-  * small reviewable commits (but see below)
+  * incremental code build-up allowing for small reviewable commits
   * linux-user mode (but no system mode atm)
-  * common qemu softfloat for FP ops
   * shorter and simplier TCG frontend
-  * more efficient TCG code for some ops
+  * more efficient TCG code for some ops, less helpers
 
 The project started as an attempt to add linux-user mode to the official
 riscv-qemu, but ended up with a clean-sheet rewrite of the whole translation
@@ -20,9 +19,7 @@ module and most of the supporting structure as well. A lot of code is based
 on openrisc, sh4 and microblaze ports; the original port was apparently
 based on target-mips.
 
-The visible "devel" branch is not what is going to be upstreamed.
-It's a development branch with lots of backtracking, bug fixing, and bugs.
-The patches are going to be re-arranged for submission.
+The visible "devel" branch is not what is going to be the final set of patches.
 
 
 Coverage and status
@@ -64,6 +61,12 @@ Use GDB from the official RISC-V toolchain in extended-remote mode:
 
 Instruction single-stepping, line stepping and breakpoints should work.
 GDB should display xN and fN registers properly as well.
+
+
+Where's the code
+~~~~~~~~~~~~~~~~
+Check target-riscv/, linux-user/riscv/, and search for TARGET_RISCV ifdefs
+in linux-user{main.c,elfload.c,signal.c,syscall_defs.h}.
 
 
 License and contacts
