@@ -192,9 +192,7 @@ static void gen_one_4byte_insn(DC, uint32_t insn)
         case /* 0000011 */ 0x03: gen_load(dc, insn); break;
         case /* 0100011 */ 0x23: gen_store(dc, insn); break;
         case /* 0010011 */ 0x13: gen_opimm(dc, insn); break;
-        case /* 0011011 */ 0x1B: gen_opimm32(dc, insn); break;
         case /* 0110011 */ 0x33: gen_op(dc, insn); break;
-        case /* 0111011 */ 0x3B: gen_op32(dc, insn); break;
         case /* 1110011 */ 0x73: gen_system(dc, insn); break;
         case /* 0001111 */ 0x0F: gen_miscmem(dc, insn); break;
         case /* 0101111 */ 0x2F: gen_amo(dc, insn); break;
@@ -205,6 +203,10 @@ static void gen_one_4byte_insn(DC, uint32_t insn)
         case /* 1001011 */ 0x4B: gen_fmadd(dc, insn); break;
         case /* 1001111 */ 0x4F: gen_fmadd(dc, insn); break;
         case /* 1010011 */ 0x53: gen_opfp(dc, insn); break;
+#ifndef TARGET_RISCV32
+        case /* 0011011 */ 0x1B: gen_opimm32(dc, insn); break;
+        case /* 0111011 */ 0x3B: gen_op32(dc, insn); break;
+#endif
         default: gen_illegal(dc);
     }
 }

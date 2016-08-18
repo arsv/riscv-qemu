@@ -159,8 +159,10 @@ static void gen_fcvt_xs(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_s(vd, ep, f1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_wu_s(vd, ep, f1, vm); break;
+#ifndef TARGET_RISCV32
         case /* 00010 */ 2: gen_helper_fcvt_l_s(vd, ep, f1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_lu_s(vd, ep, f1, vm); break;
+#endif
         default: gen_illegal(dc);
     }
 }
@@ -170,8 +172,10 @@ static void gen_fcvt_xd(DC, TCGv vd, TCGv_ptr ep, TCGf f1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_w_d(vd, ep, f1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_wu_d(vd, ep, f1, vm); break;
+#ifndef TARGET_RISCV32
         case /* 00010 */ 2: gen_helper_fcvt_l_d(vd, ep, f1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_lu_d(vd, ep, f1, vm); break;
+#endif
         default: gen_illegal(dc);
     }
 }
@@ -181,8 +185,10 @@ static void gen_fcvt_sx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_s_w(fd, ep, v1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_s_wu(fd, ep, v1, vm); break;
+#ifndef TARGET_RISCV32
         case /* 00010 */ 2: gen_helper_fcvt_s_l(fd, ep, v1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_s_lu(fd, ep, v1, vm); break;
+#endif
         default: gen_illegal(dc);
     }
 }
@@ -192,8 +198,10 @@ static void gen_fcvt_dx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
     switch(rs2) {
         case /* 00000 */ 0: gen_helper_fcvt_d_w(fd, ep, v1, vm); break;
         case /* 00001 */ 1: gen_helper_fcvt_d_wu(fd, ep, v1, vm); break;
+#ifndef TARGET_RISCV32
         case /* 00010 */ 2: gen_helper_fcvt_d_l(fd, ep, v1, vm); break;
         case /* 00011 */ 3: gen_helper_fcvt_d_lu(fd, ep, v1, vm); break;
+#endif
         default: gen_illegal(dc);
     }
 }
@@ -204,7 +212,9 @@ static void gen_fcvt_dx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 static void gen_fmv_xs(DC, TCGv vd, TCGf f1, unsigned rm)
 {
     switch(rm) {
+#ifndef TARGET_RISCV32
         case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
+#endif
         case /* 001 */ 1: gen_helper_fclass_s(vd, f1); break;
         default: gen_illegal(dc);
     }
@@ -213,7 +223,9 @@ static void gen_fmv_xs(DC, TCGv vd, TCGf f1, unsigned rm)
 static void gen_fmv_xd(DC, TCGv vd, TCGf f1, unsigned rm)
 {
     switch(rm) {
+#ifndef TARGET_RISCV32
         case /* 000 */ 0: tcg_gen_mov_tl(vd, f1); break;
+#endif
         case /* 001 */ 1: gen_helper_fclass_d(vd, f1); break;
         default: gen_illegal(dc);
     }
@@ -222,7 +234,9 @@ static void gen_fmv_xd(DC, TCGv vd, TCGf f1, unsigned rm)
 static void gen_fmv_sx(DC, TCGf fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
+#ifndef TARGET_RISCV32
         case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
+#endif
         default: gen_illegal(dc);
     }
 }
@@ -230,7 +244,9 @@ static void gen_fmv_sx(DC, TCGf fd, TCGv v1, unsigned rm)
 static void gen_fmv_dx(DC, TCGf fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
+#ifndef TARGET_RISCV32
         case /* 000 */ 0: tcg_gen_mov_tl(fd, v1); break;
+#endif
         default: gen_illegal(dc);
     }
 }

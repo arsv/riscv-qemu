@@ -85,6 +85,8 @@ static TCGv temp_new_rsum(TCGv vs, int32_t imm)
     return vt;
 }
 
+#ifndef TARGET_RISCV32
+
 static TCGv temp_new_ext32s(TCGv vs)
 {
     TCGv vx = tcg_temp_new();
@@ -112,6 +114,8 @@ static TCGv temp_local_new_ext32u(TCGv vs)
     tcg_gen_ext32u_tl(vx, vs);
     return vx;
 }
+
+#endif
 
 static TCGv temp_new_andi(TCGv vs, target_long mask)
 {

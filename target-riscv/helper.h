@@ -58,23 +58,27 @@ DEF_HELPER_FLAGS_3(feq_d, 0, tl, env, f64, f64)
 DEF_HELPER_FLAGS_3(fcvt_s_d, 0, f64, env, f64, i32)
 DEF_HELPER_FLAGS_3(fcvt_d_s, 0, f64, env, f64, i32)
 
-DEF_HELPER_FLAGS_3(fcvt_l_d,  0, tl, env, f64, i32)
-DEF_HELPER_FLAGS_3(fcvt_l_s,  0, tl, env, f64, i32)
 DEF_HELPER_FLAGS_3(fcvt_w_d,  0, tl, env, f64, i32)
 DEF_HELPER_FLAGS_3(fcvt_w_s,  0, tl, env, f64, i32)
-DEF_HELPER_FLAGS_3(fcvt_lu_d, 0, tl, env, f64, i32)
-DEF_HELPER_FLAGS_3(fcvt_lu_s, 0, tl, env, f64, i32)
 DEF_HELPER_FLAGS_3(fcvt_wu_d, 0, tl, env, f64, i32)
 DEF_HELPER_FLAGS_3(fcvt_wu_s, 0, tl, env, f64, i32)
+#ifndef TARGET_RISCV32
+DEF_HELPER_FLAGS_3(fcvt_l_d,  0, tl, env, f64, i32)
+DEF_HELPER_FLAGS_3(fcvt_l_s,  0, tl, env, f64, i32)
+DEF_HELPER_FLAGS_3(fcvt_lu_d, 0, tl, env, f64, i32)
+DEF_HELPER_FLAGS_3(fcvt_lu_s, 0, tl, env, f64, i32)
+#endif
 
-DEF_HELPER_FLAGS_3(fcvt_d_l,  0, f64, env, tl, i32)
 DEF_HELPER_FLAGS_3(fcvt_d_w,  0, f64, env, tl, i32)
-DEF_HELPER_FLAGS_3(fcvt_s_l,  0, f64, env, tl, i32)
 DEF_HELPER_FLAGS_3(fcvt_s_w,  0, f64, env, tl, i32)
-DEF_HELPER_FLAGS_3(fcvt_d_lu, 0, f64, env, tl, i32)
 DEF_HELPER_FLAGS_3(fcvt_d_wu, 0, f64, env, tl, i32)
-DEF_HELPER_FLAGS_3(fcvt_s_lu, 0, f64, env, tl, i32)
 DEF_HELPER_FLAGS_3(fcvt_s_wu, 0, f64, env, tl, i32)
+#ifndef TARGET_RISCV32
+DEF_HELPER_FLAGS_3(fcvt_d_l,  0, f64, env, tl, i32)
+DEF_HELPER_FLAGS_3(fcvt_s_l,  0, f64, env, tl, i32)
+DEF_HELPER_FLAGS_3(fcvt_d_lu, 0, f64, env, tl, i32)
+DEF_HELPER_FLAGS_3(fcvt_s_lu, 0, f64, env, tl, i32)
+#endif
 
 DEF_HELPER_FLAGS_1(fclass_s, 0, tl, f64)
 DEF_HELPER_FLAGS_1(fclass_d, 0, tl, f64)

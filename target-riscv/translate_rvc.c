@@ -119,6 +119,14 @@ static void gen_cj(DC, uint16_t insn)
     gen_exit_tb(dc, EXIT_TB_DOWN, dc->pc + imm);
 }
 
+#ifdef TARGET_RISCV32
+static void gen_cjal(DC, uint16_t insn)
+{
+    tcg_gen_movi_tl(cpu_gpr[xRA], dc->npc);
+    gen_cj(dc, insn);
+}
+#endif
+
 /* Opcode 100.10 (quadrant 2 func=100): add, rr move, j(al)r or ebreak */
 
 static void gen_cmv(unsigned rd, unsigned rs)
@@ -247,6 +255,7 @@ static void gen_clw(DC, uint16_t insn)
     tcg_temp_free(va);
 }
 
+#ifndef TARGET_RISCV32
 static void gen_cld(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
@@ -255,6 +264,7 @@ static void gen_cld(DC, uint16_t insn)
     tcg_gen_qemu_ld64(vr, va, memidx);
     tcg_temp_free(va);
 }
+#endif
 
 static void gen_cfld(DC, uint16_t insn)
 {
@@ -274,6 +284,7 @@ static void gen_csw(DC, uint16_t insn)
     tcg_temp_free(va);
 }
 
+#ifndef TARGET_RISCV32
 static void gen_csd(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
@@ -282,6 +293,7 @@ static void gen_csd(DC, uint16_t insn)
     tcg_gen_qemu_st64(vr, va, memidx);
     tcg_temp_free(va);
 }
+#endif
 
 static void gen_cfsd(DC, uint16_t insn)
 {
@@ -321,6 +333,7 @@ static void gen_clwsp(DC, uint16_t insn)
     tcg_temp_free(va);
 }
 
+#ifndef TARGET_RISCV32
 static void gen_cldsp(DC, uint16_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
@@ -337,6 +350,7 @@ static void gen_cldsp(DC, uint16_t insn)
     tcg_gen_qemu_ld64(vd, va, memidx);
     tcg_temp_free(va);
 }
+#endif
 
 static void gen_cfldsp(DC, uint16_t insn)
 {
@@ -389,6 +403,7 @@ static void gen_cswsp(DC, uint16_t insn)
     tcg_gen_qemu_st32(vr, va, memidx);
 }
 
+#ifndef TARGET_RISCV32
 static void gen_csdsp(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_css_regnum(insn)];
@@ -396,6 +411,7 @@ static void gen_csdsp(DC, uint16_t insn)
     int memidx = 0;
     tcg_gen_qemu_st64(vr, va, memidx);
 }
+#endif
 
 static void gen_cfsdsp(DC, uint16_t insn)
 {
@@ -421,6 +437,7 @@ static void gen_caddi(DC, uint16_t insn)
     tcg_gen_addi_tl(vd, vd, imm);
 }
 
+#ifndef TARGET_RISCV32
 static void gen_caddiw(DC, uint16_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
@@ -439,6 +456,7 @@ static void gen_caddiw(DC, uint16_t insn)
     else
         tcg_gen_addi_tl(vd, vd, imm);
 }
+#endif
 
 static void gen_cslli(DC, uint16_t insn)
 {
@@ -494,32 +512,33 @@ static void gen_one_2byte_insn(DC, uint16_t insn)
     int funcop = (BITFIELD(insn, 15, 13) << 2) | BITFIELD(insn, 1, 0);
 
     switch(funcop) {
-        /* quadrant 0 */
         case /* 000.00 */ 0x00: gen_addi4spn(dc, insn); break;
-        case /* 001.00 */ 0x04: gen_cfld(dc, insn); break;
         case /* 010.00 */ 0x08: gen_clw(dc, insn); break;
-        case /* 011.00 */ 0x0C: gen_cld(dc, insn); break;
-        case /* 101.00 */ 0x14: gen_cfsd(dc, insn); break;
         case /* 110.00 */ 0x18: gen_csw(dc, insn); break;
-        case /* 111.00 */ 0x1C: gen_csd(dc, insn); break;
-        /* quadrant 1 */
+        case /* 001.00 */ 0x04: gen_cfld(dc, insn); break;
+        case /* 101.00 */ 0x14: gen_cfsd(dc, insn); break;
         case /* 000.01 */ 0x01: gen_caddi(dc, insn); break;
-        case /* 001.01 */ 0x05: gen_caddiw(dc, insn); break;
         case /* 010.01 */ 0x09: gen_cli(dc, insn); break;
         case /* 011.01 */ 0x0D: gen_clui(dc, insn); break;
         case /* 100.01 */ 0x11: gen_cop(dc, insn); break;
         case /* 101.01 */ 0x15: gen_cj(dc, insn); break;
         case /* 110.01 */ 0x19: gen_cbeqz(dc, insn); break;
         case /* 111.01 */ 0x1D: gen_cbnez(dc, insn); break;
-        /* quadrant 2 */
         case /* 000.10 */ 0x02: gen_cslli(dc, insn); break;
         case /* 001.10 */ 0x06: gen_cfldsp(dc, insn); break;
         case /* 010.10 */ 0x0A: gen_clwsp(dc, insn); break;
-        case /* 011.10 */ 0x0E: gen_cldsp(dc, insn); break;
         case /* 100.10 */ 0x12: gen_cjmv(dc, insn); break;
         case /* 101.10 */ 0x16: gen_cfsdsp(dc, insn); break;
         case /* 110.10 */ 0x1A: gen_cswsp(dc, insn); break;
+#ifdef TARGET_RISCV32
+        case /* 001.01 */ 0x05: gen_cjal(dc, insn); break;
+#else
+        case /* 011.00 */ 0x0C: gen_cld(dc, insn); break;
+        case /* 111.00 */ 0x1C: gen_csd(dc, insn); break;
+        case /* 001.01 */ 0x05: gen_caddiw(dc, insn); break;
+        case /* 011.10 */ 0x0E: gen_cldsp(dc, insn); break;
         case /* 111.10 */ 0x1E: gen_csdsp(dc, insn); break;
+#endif
         default: gen_illegal(dc);
     }
 }

@@ -268,6 +268,20 @@ gpv HELPER(fcvt_wu_s)(ENV, fpv a, RM)
     return (int32_t)float32_to_uint32(a, FPS);
 }
 
+fpv HELPER(fcvt_s_w)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return int32_to_float32(a, FPS);
+}
+
+fpv HELPER(fcvt_s_wu)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return uint32_to_float32(a, FPS);
+}
+
+#ifndef TARGET_RISCV32
+
 gpv HELPER(fcvt_l_s)(ENV, fpv a, RM)
 {
     set_rounding_mode(env, rm);
@@ -292,17 +306,7 @@ fpv HELPER(fcvt_s_lu)(ENV, gpv a, RM)
     return uint64_to_float32(a, FPS);
 }
 
-fpv HELPER(fcvt_s_w)(ENV, gpv a, RM)
-{
-    set_rounding_mode(env, rm);
-    return int32_to_float32(a, FPS);
-}
-
-fpv HELPER(fcvt_s_wu)(ENV, gpv a, RM)
-{
-    set_rounding_mode(env, rm);
-    return uint32_to_float32(a, FPS);
-}
+#endif
 
 /* 64-bit FP-integer conversion */
 
@@ -318,6 +322,20 @@ gpv HELPER(fcvt_wu_d)(ENV, fpv a, RM)
     /* sign-extend for RV64 */
     return (int32_t)float64_to_uint32(a, FPS);
 }
+
+fpv HELPER(fcvt_d_w)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return int32_to_float64(a, FPS);
+}
+
+fpv HELPER(fcvt_d_wu)(ENV, gpv a, RM)
+{
+    set_rounding_mode(env, rm);
+    return uint32_to_float64(a, FPS);
+}
+
+#ifndef TARGET_RISCV32
 
 gpv HELPER(fcvt_l_d)(ENV, fpv a, RM)
 {
@@ -343,17 +361,7 @@ fpv HELPER(fcvt_d_lu)(ENV, gpv a, RM)
     return uint64_to_float64(a, FPS);
 }
 
-fpv HELPER(fcvt_d_w)(ENV, gpv a, RM)
-{
-    set_rounding_mode(env, rm);
-    return int32_to_float64(a, FPS);
-}
-
-fpv HELPER(fcvt_d_wu)(ENV, gpv a, RM)
-{
-    set_rounding_mode(env, rm);
-    return uint32_to_float64(a, FPS);
-}
+#endif
 
 /* Like float32_is_signaling_nan() with status->snan_bit_is_one clear.
    Bringing in ENV to pass a value that is a hard-wired constant for

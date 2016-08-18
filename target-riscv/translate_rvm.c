@@ -169,6 +169,8 @@ static void gen_remu(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
 }
 
+#ifndef TARGET_RISCV32
+
 static void gen_mulw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     TCGv sink = tcg_temp_new();
@@ -248,3 +250,5 @@ static void gen_remuw(TCGv vd, TCGv vs1, TCGv vs2)
     gen_set_label(done);
     tcg_gen_ext32s_tl(vd, vd); /* sign-extend even in U case! */
 }
+
+#endif

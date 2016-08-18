@@ -96,6 +96,8 @@ static void gen_opimm(DC, uint32_t insn)
     if(!rd) tcg_temp_free(vd);
 }
 
+#ifndef TARGET_RISCV32
+
 static void gen_srxiw(DC, TCGv vd, TCGv vs, unsigned shamt, unsigned flags)
 {
     if(flags & ~(1<<4)) {
@@ -134,6 +136,8 @@ static void gen_opimm32(DC, uint32_t insn)
 out:
     if(!rd) tcg_temp_free(vd);
 }
+
+#endif
 
 /* Logical SLR and arithm SLA shift right: rd = rs1 << rs2
    RISC-V apparently *ignores* high bits in shift amount register,
@@ -232,6 +236,8 @@ static void gen_op(DC, uint32_t insn)
     if(!rd) tcg_temp_free(vd);
 }
 
+#ifndef TARGET_RISCV32
+
 static void gen_addw(TCGv vd, TCGv vs1, TCGv vs2)
 {
     tcg_gen_add_tl(vd, vs1, vs2);
@@ -278,11 +284,15 @@ static void gen_sraw(TCGv vd, TCGv vs1, TCGv vs2)
     tcg_temp_free(vx);
 }
 
+#endif
+
 /* Like OP but with 32-bit words on RV64.
 
    Register handling is not uniform here, some insns sign-extend,
    some zero-extend and some do not care at all. So each insn does
    it in its own function. */
+
+#ifndef TARGET_RISCV32
 
 static void gen_op32(DC, uint32_t insn)
 {
@@ -310,6 +320,8 @@ static void gen_op32(DC, uint32_t insn)
 
     if(!rd) tcg_temp_free(vd);
 }
+
+#endif
 
 /* Jump And Link: rd = pc, pc = pc + imm
 
@@ -459,10 +471,12 @@ static void gen_load(DC, uint32_t insn)
         case /* 000 */ 0: tcg_gen_qemu_ld8s(vd, va, memidx); break;
         case /* 001 */ 1: tcg_gen_qemu_ld16s(vd, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_ld32s(vd, va, memidx); break;
-        case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
         case /* 100 */ 4: tcg_gen_qemu_ld8u(vd, va, memidx); break;
         case /* 101 */ 5: tcg_gen_qemu_ld16u(vd, va, memidx); break;
         case /* 110 */ 6: tcg_gen_qemu_ld32u(vd, va, memidx); break;
+#ifndef TARGET_RISCV32
+        case /* 011 */ 3: tcg_gen_qemu_ld64(vd, va, memidx); break;
+#endif
         default: gen_illegal(dc);
     }
 
@@ -487,7 +501,9 @@ static void gen_store(DC, uint32_t insn)
         case /* 000 */ 0: tcg_gen_qemu_st8(vs, va, memidx); break;
         case /* 001 */ 1: tcg_gen_qemu_st16(vs, va, memidx); break;
         case /* 010 */ 2: tcg_gen_qemu_st32(vs, va, memidx); break;
+#ifndef TARGET_RISCV32
         case /* 011 */ 3: tcg_gen_qemu_st64(vs, va, memidx); break;
+#endif
         default: gen_illegal(dc);
     }
 
