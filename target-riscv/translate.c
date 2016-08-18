@@ -33,6 +33,14 @@
 #include "trace-tcg.h"
 #include "exec/log.h"
 
+/* In this file, chunks of RISC-V code are translated into the native
+   code to be run on the host CPU. See
+       http://wiki.qemu.org/Documentation/TCG
+   on how it happens, and User-Level ISA Specification v2.1 from
+       https://riscv.org/specifications/
+   on what is being translated. Chapter 9 Instruction Set Listings
+   is where most of the raw binary opcodes come from. */
+
 /* Most functions here get disas context as their first argument.
    It's always the same one, allocated in gen_intermediate_code()
    once for each invocation and thus for each TB. RISC-V lacks most
