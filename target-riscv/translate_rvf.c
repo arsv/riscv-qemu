@@ -90,13 +90,13 @@ static void gen_fmadd(DC, uint32_t insn)
 
    The code below depends on tl == i64 and TCGv == TCGv_i64. */
 
-static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int fw)
+static void gen_fsgnj(DC, TCGv fd, TCGv f1, TCGv f2, int rm, int floatwidth)
 {
     TCGv sign = tcg_temp_new();
     TCGv base = tcg_temp_new();
 
-    target_long signmask = ((target_ulong)1 << (fw-1));
-    target_long basemask = ((target_ulong)-1) & ~signmask;
+    target_long signmask = ((target_float)1 << (floatwidth-1));
+    target_long basemask = ((target_float)-1) & ~signmask;
 
     tcg_gen_andi_tl(sign, f2, signmask);
     tcg_gen_andi_tl(base, f1, basemask);
