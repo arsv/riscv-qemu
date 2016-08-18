@@ -510,9 +510,7 @@ static void gen_miscmem(DC, uint32_t insn)
 
 static void gen_ecall(DC)
 {
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
-    gen_exception(dc, EXCP_SYSCALL);
-    dc->jump = true;
+    gen_excp_exit(dc, EXCP_SYSCALL);
 }
 
 static void gen_priv(DC, uint32_t insn)

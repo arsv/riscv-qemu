@@ -11,22 +11,6 @@ static void gen_exception(DC, unsigned int excp)
     tcg_temp_free_i32(tmp);
 }
 
-static void gen_illegal(DC)
-{
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
-    gen_exception(dc, EXCP_ILLEGAL);
-
-    /* Stop translating at the first illegal instruction encountered.
-       It will cause exception and block exit anyway, so there is no
-       point in proceeding.
-
-       This is wrong in case exception is raised conditionally at runtime
-       *and* the other branch is not a jump, like AMO for instance.
-       AMOs should raise something other than EXCP_ILLEGAL anyway. */
-
-    dc->jump = true;
-}
-
 /* TB terminates on the first branch or jump encountered, so there's
    always at most two exits from the TB: sideways (taken branch) and
    down (anything else). Exceptions terminate TBs as well but need no
@@ -61,17 +45,37 @@ static void gen_exit_tb(DC, int n, target_ulong dest)
     } else {
         tcg_gen_exit_tb(0);
     }
-
-    if(n == EXIT_TB_DOWN)
-        dc->jump = true;
-}
-
-static void gen_breakpoint(DC)
-{
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
-    gen_exception(dc, EXCP_DEBUG);
+    /* Terminate TB even on side exit. There must be a second exit down
+       right after the one to the side, but if there's none, there would
+       be a possibility of having two side exits and subsequent nasty
+       crashes with chained TBs. Prevent that by breaking the loop
+       in gen_intermediate_code. */
     dc->jump = true;
 }
+
+/* Exit TB by raising an exception. This is an alternative to gen_exit_tb.
+   One of them must be called at the end of each TB. */
+
+static void gen_excp_exit(DC, unsigned excp)
+{
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
+    gen_exception(dc, excp);
+    dc->jump = true;
+}
+
+/* Signal illegal instruction, and terminate TB.
+   This is wrong in case exception is raised conditionally at runtime
+   *and* the other branch is not a jump, like AMO for instance.
+   That must be done with gen_exception without TB exit.
+   AMOs should raise something other than EXCP_ILLEGAL anyway. */
+
+static void gen_illegal(DC)
+{
+    gen_excp_exit(dc, EXCP_ILLEGAL);
+}
+
+/* Handy routines for common temp values. All must be freed after use
+   with tcg_temp_free(). Only local temps survive a branch or a jump. */
 
 static TCGv temp_new_rsum(TCGv vs, int32_t imm)
 {

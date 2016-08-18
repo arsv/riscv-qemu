@@ -269,8 +269,10 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
     do {
         tcg_gen_insn_start(dc->pc);
 
-        if(unlikely(cpu_breakpoint_test(cs, dc->pc, BP_ANY)))
-            gen_breakpoint(dc);
+        if(unlikely(cpu_breakpoint_test(cs, dc->pc, BP_ANY))) {
+            gen_excp_exit(dc, EXCP_DEBUG);
+            break;
+        }
 
         fetch_gen_one_insn(dc, &cpu->env);
 

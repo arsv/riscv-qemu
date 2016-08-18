@@ -14,7 +14,5 @@
 static void gen_amo(DC, uint32_t insn)
 {
     tcg_gen_movi_i32(cpu_amoinsn, insn);
-    tcg_gen_movi_tl(cpu_pc, dc->pc);
-    gen_exception(dc, EXCP_ATOMIC);
-    dc->jump = true;
+    gen_excp_exit(dc, EXCP_ATOMIC);
 }
