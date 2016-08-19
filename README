@@ -12,6 +12,7 @@ Major changes include:
   * linux-user mode (but no system mode atm)
   * shorter and simplier TCG frontend
   * more efficient TCG code for some ops, less helpers
+  * support for RV32 and compresses opcodes
 
 The project started as an attempt to add linux-user mode to the official
 riscv-qemu, but ended up with a clean-sheet rewrite of the whole translation
@@ -27,26 +28,25 @@ Coverage and status
 RV64 user mode emulation (qemu-riscv) builds and runs some executables.
 System mode emulation is not supported yet.
 
-Extensions A, M, F, D and C are implemented for RV64.
-No support for RV32 yet.
+Extensions A, M, F, D and C are implemented for RV64 and RV32.
 Most CSRs are not properly supported, including mandatory counters.
 
 GDB remote debugging works.
 
-Current plans: RV32, system mode.
+Current plans: system mode.
 
 
 Building
 ~~~~~~~~
-Follow standard qemu procedure for riscv-linux-user target:
+Follow standard qemu procedure for riscv64-linux-user target:
 
-    ./configure --target-list=riscv-linux-user [--python=/usr/bin/python2]
+    ./configure --target-list=riscv64-linux-user [--python=/usr/bin/python2]
     make
 
 Note configure needs explicit python2 command supplied in case the host
 python is python 3.x, which is pretty common in modern distros.
 
-The target is just "riscv" for now.
+Target name for RV32 is riscv32-linux-user.
 
 
 Debugging
