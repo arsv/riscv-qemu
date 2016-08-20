@@ -1215,7 +1215,12 @@ static inline void init_thread(struct target_pt_regs *regs,
 
 #define ELF_START_MMAP 0x80000000
 #define ELF_ARCH  EM_RISCV
+
+#ifdef TARGET_RISCV32
+#define ELF_CLASS ELFCLASS32
+#else
 #define ELF_CLASS ELFCLASS64
+#endif
 
 static inline void init_thread(struct target_pt_regs *regs,
                                struct image_info *infop)
