@@ -26,12 +26,12 @@
 #define FPS &env->fpstatus          /* FP status (softfloat internal state) */
 #define RM uint32_t rm
 
-#if TARGET_LONG_BITS == 32
-#define gpv uint32_t                /* RV32 GP register value type */
+#ifdef TARGET_RISCV32
+#define gpv uint32_t                /* RV32 GPR */
 #else
-#define gpv uint64_t                /* RV64 GP register value type */
+#define gpv uint64_t                /* RV64 GPR */
 #endif
-#define fpv uint64_t                /* RV*D FP register value type */
+#define fpv uint64_t                /* FPR value type common for both */
 
 /* All FP ops that round values have rounding mode encoded in insn.
    For softfloat, it's a global setting instead of per-op parameter,
