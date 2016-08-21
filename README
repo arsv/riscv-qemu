@@ -30,6 +30,7 @@ System mode emulation is not supported yet.
 
 Extensions A, M, F, D and C are implemented for RV64 and RV32.
 Most CSRs are not properly supported, including mandatory counters.
+This implementation follows RISC-V ISA spec version 2.1.
 
 GDB remote debugging works.
 
