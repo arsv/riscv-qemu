@@ -7136,9 +7136,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_oldstat:
         goto unimplemented;
 #endif
+#ifdef TARGET_NR_lseek
     case TARGET_NR_lseek:
         ret = get_errno(lseek(arg1, arg2, arg3));
         break;
+#endif
 #if defined(TARGET_NR_getxpid) && defined(TARGET_ALPHA)
     /* Alpha specific */
     case TARGET_NR_getxpid:
@@ -7467,9 +7469,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_ioctl:
         ret = do_ioctl(arg1, arg2, arg3);
         break;
+#ifdef TARGET_NR_fcntl
     case TARGET_NR_fcntl:
         ret = do_fcntl(arg1, arg2, arg3);
         break;
+#endif
 #ifdef TARGET_NR_mpx
     case TARGET_NR_mpx:
         goto unimplemented;
@@ -8332,15 +8336,19 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = get_errno(munlockall());
         break;
 #endif
+#ifdef TARGET_NR_truncate
     case TARGET_NR_truncate:
         if (!(p = lock_user_string(arg1)))
             goto efault;
         ret = get_errno(truncate(p, arg2));
         unlock_user(p, arg1, 0);
         break;
+#endif
+#ifdef TARGET_NR_ftruncate
     case TARGET_NR_ftruncate:
         ret = get_errno(ftruncate(arg1, arg2));
         break;
+#endif
     case TARGET_NR_fchmod:
         ret = get_errno(fchmod(arg1, arg2));
         break;
@@ -8376,6 +8384,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_profil:
         goto unimplemented;
 #endif
+#ifdef TARGET_NR_statfs
     case TARGET_NR_statfs:
         if (!(p = lock_user_string(arg1)))
             goto efault;
@@ -8405,6 +8414,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_fstatfs:
         ret = get_errno(fstatfs(arg1, &stfs));
         goto convert_statfs;
+#endif
 #ifdef TARGET_NR_statfs64
     case TARGET_NR_statfs64:
         if (!(p = lock_user_string(arg1)))
@@ -8615,6 +8625,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         unlock_user(p, arg1, 0);
         goto do_stat;
 #endif
+#ifdef TARGET_NR_fstat
     case TARGET_NR_fstat:
         {
             ret = get_errno(fstat(arg1, &st));
@@ -8644,6 +8655,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             }
         }
         break;
+#endif
 #ifdef TARGET_NR_olduname
     case TARGET_NR_olduname:
         goto unimplemented;
@@ -9520,6 +9532,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         break;
 
 #ifdef CONFIG_SENDFILE
+#ifdef TARGET_NR_sendfile
     case TARGET_NR_sendfile:
     {
         off_t *offp = NULL;
@@ -9540,6 +9553,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         }
         break;
     }
+#endif
 #ifdef TARGET_NR_sendfile64
     case TARGET_NR_sendfile64:
     {
