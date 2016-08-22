@@ -28,7 +28,11 @@
 #define TARGET_NR_epoll_pwait 22
 #define TARGET_NR_dup 23
 #define TARGET_NR_dup3 24
+#ifdef TARGET_RISCV32
+#define TARGET_NR_fcntl64 25
+#else
 #define TARGET_NR_fcntl 25
+#endif
 #define TARGET_NR_inotify_init1 26
 #define TARGET_NR_inotify_add_watch 27
 #define TARGET_NR_inotify_rm_watch 28
@@ -46,10 +50,17 @@
 #define TARGET_NR_mount 40
 #define TARGET_NR_pivot_root 41
 #define TARGET_NR_nfsservctl 42
+#ifdef TARGET_RISCV32
+#define TARGET_NR_statfs64 43
+#define TARGET_NR_fstatfs64 44
+#define TARGET_NR_truncate64 45
+#define TARGET_NR_ftruncate64 46
+#else
 #define TARGET_NR_statfs 43
 #define TARGET_NR_fstatfs 44
 #define TARGET_NR_truncate 45
 #define TARGET_NR_ftruncate 46
+#endif
 #define TARGET_NR_fallocate 47
 #define TARGET_NR_faccessat 48
 #define TARGET_NR_chdir 49
@@ -65,7 +76,11 @@
 #define TARGET_NR_pipe2 59
 #define TARGET_NR_quotactl 60
 #define TARGET_NR_getdents64 61
+#ifdef TARGET_RISCV32
+#define TARGET_NR_llseek 62
+#else
 #define TARGET_NR_lseek 62
+#endif
 #define TARGET_NR_read 63
 #define TARGET_NR_write 64
 #define TARGET_NR_readv 65
@@ -74,7 +89,11 @@
 #define TARGET_NR_pwrite64 68
 #define TARGET_NR_preadv 69
 #define TARGET_NR_pwritev 70
+#ifdef TARGET_RISCV32
+#define TARGET_NR_sendfile64 71
+#else
 #define TARGET_NR_sendfile 71
+#endif
 #define TARGET_NR_pselect6 72
 #define TARGET_NR_ppoll 73
 #define TARGET_NR_signalfd4 74
@@ -82,13 +101,17 @@
 #define TARGET_NR_splice 76
 #define TARGET_NR_tee 77
 #define TARGET_NR_readlinkat 78
+#ifdef TARGET_RISCV32
 #define TARGET_NR_fstatat64 79
+#define TARGET_NR_fstat64 80
+#else
+#define TARGET_NR_newfstatat 79
 #define TARGET_NR_fstat 80
+#endif
 #define TARGET_NR_sync 81
 #define TARGET_NR_fsync 82
 #define TARGET_NR_fdatasync 83
-#define TARGET_NR_sync_file_range2 84
-/* #define TARGET_NR_sync_file_range 84 */
+#define TARGET_NR_sync_file_range 84
 #define TARGET_NR_timerfd_create 85
 #define TARGET_NR_timerfd_settime 86
 #define TARGET_NR_timerfd_gettime 87
@@ -226,8 +249,13 @@
 #define TARGET_NR_keyctl 219
 #define TARGET_NR_clone 220
 #define TARGET_NR_execve 221
+#ifdef TARGET_RISCV32
+#define TARGET_NR_mmap2 222
+#define TARGET_NR_fadvise64_64 223
+#else
 #define TARGET_NR_mmap 222
 #define TARGET_NR_fadvise64 223
+#endif
 #define TARGET_NR_swapon 224
 #define TARGET_NR_swapoff 225
 #define TARGET_NR_mprotect 226
@@ -253,8 +281,8 @@
 #define TARGET_NR_prlimit64 261
 #define TARGET_NR_fanotify_init 262
 #define TARGET_NR_fanotify_mark 263
-#define TARGET_NR_name_to_handle_at         264
-#define TARGET_NR_open_by_handle_at         265
+#define TARGET_NR_name_to_handle_at 264
+#define TARGET_NR_open_by_handle_at 265
 #define TARGET_NR_clock_adjtime 266
 #define TARGET_NR_syncfs 267
 #define TARGET_NR_setns 268
@@ -263,62 +291,6 @@
 #define TARGET_NR_process_vm_writev 271
 #define TARGET_NR_kcmp 272
 #define TARGET_NR_finit_module 273
-#define TARGET_NR_open 1024
-#define TARGET_NR_link 1025
-#define TARGET_NR_unlink 1026
-#define TARGET_NR_mknod 1027
-#define TARGET_NR_chmod 1028
-#define TARGET_NR_chown 1029
-#define TARGET_NR_mkdir 1030
-#define TARGET_NR_rmdir 1031
-#define TARGET_NR_lchown 1032
-#define TARGET_NR_access 1033
-#define TARGET_NR_rename 1034
-#define TARGET_NR_readlink 1035
-#define TARGET_NR_symlink 1036
-#define TARGET_NR_utimes 1037
-#define TARGET_NR_stat 1038
-#define TARGET_NR_lstat 1039
-#define TARGET_NR_pipe 1040
-#define TARGET_NR_dup2 1041
-#define TARGET_NR_epoll_create 1042
-#define TARGET_NR_inotify_init 1043
-#define TARGET_NR_eventfd 1044
-#define TARGET_NR_signalfd 1045
-#define TARGET_NR_sendfile64 1046
-#define TARGET_NR_ftruncate64 1047
-#define TARGET_NR_truncate64 1048
-#define TARGET_NR_stat64 1049
-#define TARGET_NR_lstat64 1050
-#define TARGET_NR_fstat64 1051
-#define TARGET_NR_fcntl64 1052
-/* #define TARGET_NR_fadvise64 1053 */
-#define TARGET_NR_newfstatat 1054
-#define TARGET_NR_fstatfs64 1055
-#define TARGET_NR_statfs64 1056
-#define TARGET_NR_lseek64 1057
-#define TARGET_NR_mmap64 1058
-#define TARGET_NR_alarm 1059
-#define TARGET_NR_getpgrp 1060
-#define TARGET_NR_pause 1061
-#define TARGET_NR_time 1062
-#define TARGET_NR_utime 1063
-#define TARGET_NR_creat 1064
-#define TARGET_NR_getdents 1065
-#define TARGET_NR_futimesat 1066
-#define TARGET_NR_select 1067
-#define TARGET_NR_poll 1068
-#define TARGET_NR_epoll_wait 1069
-#define TARGET_NR_ustat 1070
-#define TARGET_NR_vfork 1071
-#define TARGET_NR_oldwait4 1072
-#define TARGET_NR_recv 1073
-#define TARGET_NR_send 1074
-#define TARGET_NR_bdflush 1075
-#define TARGET_NR_umount 1076
-#define TARGET_NR_uselib 1077
-#define TARGET_NR__sysctl 1078
-#define TARGET_NR_fork 1079
-#define TARGET_NR_syscalls (__NR_fork+1)
 
+#define TARGET_NR_syscalls (__NR_finit_module+1)
 #define TARGET_NR_sigreturn 1999
