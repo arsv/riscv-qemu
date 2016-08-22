@@ -3799,15 +3799,27 @@ void cpu_loop(CPURISCVState *env)
             break;
         case EXCP_SYSCALL:
             env->pc += 4;
-            ret = do_syscall(env,
-                             env->gpr[xA7],
-                             env->gpr[xA0],
-                             env->gpr[xA1],
-                             env->gpr[xA2],
-                             env->gpr[xA3],
-                             env->gpr[xA4],
-                             env->gpr[xA5],
-                             0, 0);
+            if(env->gpr[xA7] == TARGET_NR_arch_specific_syscall) {
+                /* kernel-assisted AMO not suitable for do_syscall */
+                start_exclusive();
+                ret = riscv_arch_specific_syscall(env,
+                                 env->gpr[xA7],
+                                 env->gpr[xA0],
+                                 env->gpr[xA1],
+                                 env->gpr[xA2],
+                                 env->gpr[xA3]);
+                end_exclusive();
+            } else {
+                ret = do_syscall(env,
+                                 env->gpr[xA7],
+                                 env->gpr[xA0],
+                                 env->gpr[xA1],
+                                 env->gpr[xA2],
+                                 env->gpr[xA3],
+                                 env->gpr[xA4],
+                                 env->gpr[xA5],
+                                 0, 0);
+            }
             if (ret == -TARGET_ERESTARTSYS) {
                 env->pc -= 4;
             } else if (ret != -TARGET_QEMU_ESIGRETURN) {

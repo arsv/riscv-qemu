@@ -137,6 +137,9 @@ int riscv_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 
 int riscv_cpu_do_usermode_amo(CPUState* cs);
 
+target_long riscv_arch_specific_syscall(CPURISCVState *env, int num,
+        target_long cmd, target_long arg1, target_long arg2, target_long arg3);
+
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))
 #define cpu_signal_handler cpu_riscv_signal_handler

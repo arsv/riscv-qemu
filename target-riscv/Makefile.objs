@@ -1,2 +1,3 @@
 obj-y += model.o cpu.o translate.o exception.o dump.o\
-	helper.o helper_csr.o helper_fpu.o gdbstub.o atomic.o
+    helper.o helper_csr.o helper_fpu.o gdbstub.o atomic.o\
+    syscall.o
