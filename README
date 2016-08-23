@@ -25,7 +25,7 @@ The visible "devel" branch is not what is going to be the final set of patches.
 
 Coverage and status
 ~~~~~~~~~~~~~~~~~~~
-User mode RV64/RV32 emulation builds and run executables.
+User mode RV64/RV32 emulation builds and runs some executables.
 System mode emulation is not supported yet.
 
 Extensions A, M, F, D and C are implemented for RV64 and RV32.
@@ -34,7 +34,9 @@ This implementation follows RISC-V ISA spec version 2.1.
 
 GDB remote debugging works.
 
-Current plans: minimalistic system mode.
+Some executables linked against glibc crash, corrupting stack; reason unclear.
+
+Current plans: fix glibc issues, minimalistic system mode.
 
 
 Building
