@@ -346,13 +346,15 @@ static void gen_op32(DC, uint32_t insn)
 static void gen_jal(DC, uint32_t insn)
 {
     unsigned rd = BITFIELD(insn, 11, 7);
+    /* insn   31   30:21   20   19:12   */
+    /*  imm [ 20 | 10:1  | 11 | 19:12 ] */
     int32_t imm =
             (BITFIELD(insn, 19, 12) << 12) |
             (BITFIELD(insn, 20, 20) << 11) |
             (BITFIELD(insn, 30, 21) << 1);
 
     if(BITFIELD(insn, 31, 31)) /* sign bit */
-        imm |= (-1 << 19);
+        imm |= (-1 << 20);
 
     if(rd) /* JAL x0 is a plain jump */
         tcg_gen_movi_tl(cpu_gpr[rd], dc->npc);
