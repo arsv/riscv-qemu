@@ -44,3 +44,7 @@ struct target_pt_regs {
 #define TARGET_MINSIGSTKSZ 2048
 #define TARGET_MLOCKALL_MCL_CURRENT 1
 #define TARGET_MLOCKALL_MCL_FUTURE  2
+
+/* clone(flags, newsp, ptidptr, tls, ctidptr) for RISC-V */
+/* This comes from linux/kernel/fork.c, CONFIG_CLONE_BACKWARDS */
+#define TARGET_CLONE_BACKWARDS
