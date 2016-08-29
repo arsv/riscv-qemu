@@ -5797,6 +5797,185 @@ long do_rt_sigreturn(CPUTLGState *env)
     force_sig(TARGET_SIGSEGV);
 }
 
+#elif defined(TARGET_RISCV)
+
+/* Signal handler invocation must be transparent for the code being
+   interrupted. Complete CPU (hart) state is saved on entry and restored
+   before returning from the handler. Process sigmask is also saved to block
+   signals while the handler is running. The handler gets its own stack,
+   which also doubles as storage for the CPU state and sigmask.
+
+   The code below is qemu re-implementation of arch/riscv/kernel/signal.c */
+
+struct target_sigcontext {
+    abi_long pc;
+    abi_long gpr[31];
+    uint64_t fpr[32];
+    uint32_t fcsr;
+}; /* cf. riscv-linux:arch/riscv/include/uapi/asm/ptrace.h */
+
+struct target_ucontext {
+    unsigned long uc_flags;
+    struct target_ucontext *uc_link;
+    target_stack_t uc_stack;
+    struct target_sigcontext uc_mcontext;
+    target_sigset_t uc_sigmask;
+};
+
+struct target_rt_sigframe {
+    uint32_t tramp[2]; /* not in kernel, which uses VDSO instead */
+    struct target_siginfo info;
+    struct target_ucontext uc;
+};
+
+static abi_ulong get_sigframe(struct target_sigaction *ka,
+                              CPURISCVState* regs, size_t framesize)
+{
+    abi_ulong sp = regs->gpr[xSP];
+    int onsigstack = on_sig_stack(sp);
+
+    /* redzone */
+    /* This is the X/Open sanctioned signal stack switching.  */
+    if ((ka->sa_flags & TARGET_SA_ONSTACK) != 0 && !onsigstack) {
+        sp = target_sigaltstack_used.ss_sp + target_sigaltstack_used.ss_size;
+    }
+
+    sp -= framesize;
+    sp &= ~3UL; /* align sp on 4-byte boundary */
+
+    /* If we are on the alternate signal stack and would overflow it, don't.
+       Return an always-bogus address instead so we will die with SIGSEGV. */
+    if (onsigstack && unlikely(on_sig_stack(sp))) {
+        return -1L;
+    }
+
+    return sp;
+}
+
+static void setup_sigcontext(struct target_sigcontext *sc, CPURISCVState *env)
+{
+    int i;
+
+    __put_user(env->pc, &sc->pc);
+
+    for(i = 1; i < 32; i++)
+        __put_user(env->gpr[i], &sc->gpr[i]);
+    for(i = 0; i < 32; i++)
+        __put_user(env->fpr[i], &sc->fpr[i]);
+
+    uint32_t fcsr = riscv_get_fcsr(env);
+    __put_user(fcsr, &sc->fcsr);
+}
+
+static void setup_ucontext(struct target_ucontext* uc,
+                           CPURISCVState* env, target_sigset_t *set)
+{
+    abi_ulong ss_sp = (target_ulong)target_sigaltstack_used.ss_sp;
+    abi_ulong ss_flags = sas_ss_flags(env->gpr[xSP]);
+    abi_ulong ss_size = target_sigaltstack_used.ss_size;
+
+    __put_user(0,    &(uc->uc_flags));
+    __put_user(0,    &(uc->uc_link));
+
+    __put_user(ss_sp,    &(uc->uc_stack.ss_sp));
+    __put_user(ss_flags, &(uc->uc_stack.ss_flags));
+    __put_user(ss_size,  &(uc->uc_stack.ss_size));
+
+    int i;
+    for(i = 0; i < TARGET_NSIG_WORDS; i++)
+        __put_user(set->sig[i], &(uc->uc_sigmask.sig[i]));
+
+    setup_sigcontext(&uc->uc_mcontext, env);
+}
+
+static inline void install_sigtramp(uint32_t *tramp)
+{
+    __put_user(0x08b00893, tramp + 0);  /* li a7, 139 = __NR_rt_sigreturn */
+    __put_user(0x00000073, tramp + 1);  /* ecall */
+}
+
+static void setup_rt_frame(int sig, struct target_sigaction *ka,
+                           target_siginfo_t *info,
+                           target_sigset_t *set, CPURISCVState *env)
+{
+    abi_ulong frame_addr;
+    struct target_rt_sigframe *frame;
+
+    frame_addr = get_sigframe(ka, env, sizeof(*frame));
+    trace_user_setup_rt_frame(env, frame_addr);
+
+    if (!lock_user_struct(VERIFY_WRITE, frame, frame_addr, 0))
+        goto badframe;
+
+    setup_ucontext(&frame->uc, env, set);
+    tswap_siginfo(&frame->info, info);
+    install_sigtramp(frame->tramp);
+
+    env->gpr[xRA] = (abi_ulong) &frame->tramp; /* return to trampoline */
+    env->pc = ka->_sa_handler;
+    env->gpr[xSP] = (abi_ulong) frame;
+    env->gpr[xA1] = sig;
+    env->gpr[xA2] = (abi_ulong)(&frame->info);
+    env->gpr[xA3] = (abi_ulong)(&frame->uc);
+
+    return;
+
+badframe:
+    unlock_user_struct(frame, frame_addr, 1);
+    if (sig == TARGET_SIGSEGV)
+        ka->_sa_handler = TARGET_SIG_DFL;
+    force_sig(TARGET_SIGSEGV);
+}
+
+static void restore_sigcontext(CPURISCVState *env, struct target_sigcontext *sc)
+{
+    int i;
+
+    __get_user(env->pc, &sc->pc);
+
+    for (i = 1; i < 32; ++i)
+        __get_user(env->gpr[i], &sc->gpr[i]);
+    for (i = 0; i < 32; ++i)
+        __get_user(env->fpr[i], &sc->fpr[i]);
+
+    uint32_t fcsr;
+    __get_user(fcsr, &sc->fcsr);
+    riscv_set_fcsr(env, fcsr);
+}
+
+static void restore_ucontext(CPURISCVState* env, struct target_ucontext* uc)
+{
+    sigset_t blocked;
+    target_sigset_t target_set;
+    int i;
+
+    for(i = 0; i < TARGET_NSIG_WORDS; i++)
+        __get_user(target_set.sig[i], &(uc->uc_sigmask.sig[i]));
+
+    target_to_host_sigset_internal(&blocked, &target_set);
+
+    restore_sigcontext(env, &uc->uc_mcontext);
+}
+
+long do_rt_sigreturn(CPURISCVState *env)
+{
+    struct target_rt_sigframe *frame;
+    abi_ulong frame_addr;
+
+    frame_addr = env->gpr[xSP];
+    trace_user_do_sigreturn(env, frame_addr);
+    if (!lock_user_struct(VERIFY_READ, frame, frame_addr, 1))
+        goto badframe;
+
+    restore_ucontext(env, &frame->uc);
+
+    return -TARGET_QEMU_ESIGRETURN;
+
+badframe:
+    force_sig(TARGET_SIGSEGV);
+    return 0;
+}
+
 #else
 
 static void setup_frame(int sig, struct target_sigaction *ka,
@@ -5893,7 +6072,8 @@ static void handle_pending_signal(CPUArchState *cpu_env, int sig)
 #endif
         /* prepare the stack frame of the virtual CPU */
 #if defined(TARGET_ABI_MIPSN32) || defined(TARGET_ABI_MIPSN64) \
-    || defined(TARGET_OPENRISC) || defined(TARGET_TILEGX)
+    || defined(TARGET_OPENRISC) || defined(TARGET_TILEGX) \
+    || defined(TARGET_RISCV)
         /* These targets do not have traditional signals.  */
         setup_rt_frame(sig, sa, &k->info, &target_old_set, cpu_env);
 #else

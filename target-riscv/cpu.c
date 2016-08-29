@@ -102,8 +102,6 @@ static void riscv_cpu_set_pc(CPUState *cs, vaddr value)
 {
     RISCVCPU *cpu = RISCV_CPU(cs);
 
-    printf("%s %li\n", __FUNCTION__, value);
-
     cpu->env.pc = value;
 }
 

@@ -293,4 +293,3 @@
 #define TARGET_NR_finit_module 273
 
 #define TARGET_NR_syscalls (__NR_finit_module+1)
-#define TARGET_NR_sigreturn 1999
