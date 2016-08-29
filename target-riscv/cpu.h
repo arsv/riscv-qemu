@@ -135,6 +135,9 @@ void riscv_cpu_dump_state(CPUState *cs,
 int riscv_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int riscv_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 
+unsigned riscv_get_fcsr(CPURISCVState* env);
+void riscv_set_fcsr(CPURISCVState* env, unsigned value);
+
 int riscv_cpu_do_usermode_amo(CPUState* cs);
 
 target_long riscv_arch_specific_syscall(CPURISCVState *env, int num,

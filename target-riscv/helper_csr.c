@@ -34,7 +34,7 @@
    Keeping a shadow fflags variable in ENV makes no sense and would not
    simplify any of the following functions. */
 
-static unsigned rv_get_fflags(ENV)
+static unsigned riscv_get_fflags(ENV)
 {
     signed char flags = env->fpstatus.float_exception_flags;
     unsigned ret = 0;
@@ -53,7 +53,7 @@ static unsigned rv_get_fflags(ENV)
     return ret;
 }
 
-static void rv_set_fflags(ENV, unsigned val)
+static void riscv_set_fflags(ENV, unsigned val)
 {
     signed char flags = 0;
 
@@ -78,20 +78,22 @@ static void rv_set_fflags(ENV, unsigned val)
    for each given instruction, which may be static (per-insn) or dynamic (frm),
    so frm itself must be stored somewhere else. */
 
-static void rv_set_frm(ENV, unsigned val)
+static void riscv_set_frm(ENV, int val)
 {
     env->frm = val & 7;
 }
 
-static unsigned rv_get_fcsr(ENV)
+/* These two get called in linux-user to save FPU state */
+
+unsigned riscv_get_fcsr(ENV)
 {
     return rv_get_fflags(env) | (env->frm << 5);
 }
 
-static void rv_set_fcsr(ENV, unsigned val)
+void riscv_set_fcsr(ENV, unsigned val)
 {
-    rv_set_fflags(env, BITFIELD(val, 4, 0));
-    rv_set_frm(env, BITFIELD(val, 7, 5));
+    riscv_set_fflags(env, BITFIELD(val, 4, 0));
+    riscv_set_frm(env, BITFIELD(val, 7, 5));
 }
 
 /* Primary CSR tables.
@@ -101,9 +103,9 @@ static void rv_set_fcsr(ENV, unsigned val)
 static target_ulong rv_get_csr(ENV, unsigned csr)
 {
     switch(csr) {
-        case 0x001: return rv_get_fflags(env);
+        case 0x001: return riscv_get_fflags(env);
         case 0x002: return env->frm;
-        case 0x003: return rv_get_fcsr(env);
+        case 0x003: return riscv_get_fcsr(env);
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
@@ -111,9 +113,9 @@ static target_ulong rv_get_csr(ENV, unsigned csr)
 static void rv_set_csr(ENV, unsigned csr, target_ulong val)
 {
     switch(csr) {
-        case 0x001: rv_set_fflags(env, val); break;
-        case 0x002: rv_set_frm(env, val); break;
-        case 0x003: rv_set_fcsr(env, val); break;
+        case 0x001: riscv_set_fflags(env, val); break;
+        case 0x002: riscv_set_frm(env, val); break;
+        case 0x003: riscv_set_fcsr(env, val); break;
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
