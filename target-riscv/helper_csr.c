@@ -87,7 +87,7 @@ static void riscv_set_frm(ENV, int val)
 
 unsigned riscv_get_fcsr(ENV)
 {
-    return rv_get_fflags(env) | (env->frm << 5);
+    return riscv_get_fflags(env) | (env->frm << 5);
 }
 
 void riscv_set_fcsr(ENV, unsigned val)
