@@ -6,12 +6,12 @@ static inline void cpu_clone_regs(CPURISCVState *env, target_ulong newsp)
     if (newsp)
         env->gpr[xSP] = newsp;
 
-    /* stub */
+    env->gpr[xA0] = 0;
 }
 
 static inline void cpu_set_tls(CPURISCVState *env, target_ulong newtls)
 {
-    /* stub */
+    env->gpr[xTP] = newtls;
 }
 
 #endif
