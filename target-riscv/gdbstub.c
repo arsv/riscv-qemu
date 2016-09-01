@@ -33,7 +33,7 @@ int riscv_cpu_gdb_read_register(CPUState *cs, uint8_t *mem_buf, int n)
         case 32:
             return gdb_get_regl(mem_buf, env->pc);
         case 33 ... 64:
-            return gdb_get_regl(mem_buf, env->fpr[n-33]);
+            return gdb_get_reg64(mem_buf, env->fpr[n-33]);
         default:
             return 0;
 
@@ -54,7 +54,7 @@ int riscv_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
             return sizeof(target_long);
         case 33 ... 64:
             env->fpr[n-33] = ldl_p(mem_buf);
-            return sizeof(target_long); /* target_float actually */
+            return sizeof(target_float);
         default:
             return 0;
     }
