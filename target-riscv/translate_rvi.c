@@ -79,7 +79,7 @@ static void gen_opimm(DC, uint32_t insn)
     unsigned flags = BITFIELD(insn, 31, 26);
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
-    TCGv vs = cpu_gpr[rs];
+    TCGv vs = rs ? cpu_gpr[rs] : tcg_const_tl(0);
 
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
@@ -94,6 +94,7 @@ static void gen_opimm(DC, uint32_t insn)
     }
 
     if(!rd) tcg_temp_free(vd);
+    if(!rs) tcg_temp_free(vs);
 }
 
 #ifndef TARGET_RISCV32
@@ -122,7 +123,7 @@ static void gen_opimm32(DC, uint32_t insn)
     unsigned flags = BITFIELD(insn, 31, 26);  /* SLLIW, SRLIW, SRAIW */
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_new();
-    TCGv vs = cpu_gpr[rs];
+    TCGv vs = rs ? cpu_gpr[rs] : tcg_const_tl(0);
 
     switch(BITFIELD(insn, 14, 12)) {
         case /* 000 */ 0: tcg_gen_addi_tl(vd, vs, imm); break;
@@ -135,6 +136,7 @@ static void gen_opimm32(DC, uint32_t insn)
 
 out:
     if(!rd) tcg_temp_free(vd);
+    if(!rs) tcg_temp_free(vs);
 }
 
 #endif
@@ -208,8 +210,8 @@ static void gen_op(DC, uint32_t insn)
     unsigned rd = BITFIELD(insn, 11, 7);
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
-    TCGv vs1 = cpu_gpr[rs1];
-    TCGv vs2 = cpu_gpr[rs2];
+    TCGv vs1 = rs1 ? cpu_gpr[rs1] : tcg_const_local_tl(0);
+    TCGv vs2 = rs2 ? cpu_gpr[rs2] : tcg_const_local_tl(0);
 
     switch(rvop_extfunc(insn)) {
         case /* 00.000 */ 0: tcg_gen_add_tl(vd, vs1, vs2); break;
@@ -234,6 +236,8 @@ static void gen_op(DC, uint32_t insn)
     }
 
     if(!rd) tcg_temp_free(vd);
+    if(!rs1) tcg_temp_free(vs1);
+    if(!rs2) tcg_temp_free(vs2);
 }
 
 #ifndef TARGET_RISCV32
@@ -301,8 +305,8 @@ static void gen_op32(DC, uint32_t insn)
     unsigned rd = BITFIELD(insn, 11, 7);
 
     TCGv vd = rd ? cpu_gpr[rd] : tcg_temp_local_new();
-    TCGv vs1 = cpu_gpr[rs1];
-    TCGv vs2 = cpu_gpr[rs2];
+    TCGv vs1 = rs1 ? cpu_gpr[rs1] : tcg_const_local_tl(0);
+    TCGv vs2 = rs2 ? cpu_gpr[rs2] : tcg_const_local_tl(0);
 
     switch(rvop_extfunc(insn)) {
         case /* 00.000 */ 0: gen_addw(vd, vs1, vs2); break;
@@ -319,6 +323,8 @@ static void gen_op32(DC, uint32_t insn)
     }
 
     if(!rd) tcg_temp_free(vd);
+    if(!rs1) tcg_temp_free(vs1);
+    if(!rs2) tcg_temp_free(vs2);
 }
 
 #endif
@@ -437,8 +443,8 @@ static void gen_branch(DC, uint32_t insn)
     if(insn & (1<<31))
         imm |= (-1 << 12);                          /* 12, sign bit */
 
-    TCGv vs1 = cpu_gpr[rs1];
-    TCGv vs2 = cpu_gpr[rs2];
+    TCGv vs1 = rs1 ? cpu_gpr[rs1] : tcg_const_tl(0);
+    TCGv vs2 = rs2 ? cpu_gpr[rs2] : tcg_const_tl(0);
     TCGLabel* l = gen_new_label();
 
     switch(BITFIELD(insn, 14, 12)) {
@@ -448,13 +454,17 @@ static void gen_branch(DC, uint32_t insn)
         case /* 101 */ 5: tcg_gen_brcond_tl(TCG_COND_LT, vs1, vs2, l); break;
         case /* 110 */ 6: tcg_gen_brcond_tl(TCG_COND_GEU, vs1, vs2, l); break;
         case /* 111 */ 7: tcg_gen_brcond_tl(TCG_COND_LTU, vs1, vs2, l); break;
-        default: gen_illegal(dc); return;
+        default: gen_illegal(dc); goto out;
     }
 
     gen_exit_tb(dc, EXIT_TB_SIDE, dc->pc + imm);
 
     gen_set_label(l);
     gen_exit_tb(dc, EXIT_TB_DOWN, dc->npc);
+
+out:
+    if(!rs1) tcg_temp_free(vs1);
+    if(!rs2) tcg_temp_free(vs2);
 }
 
 /* Memory load: rd = [rs + imm]; LB, LH, LW, LD, LBU, LHU */
