@@ -59,7 +59,8 @@ static int rv_do_lr(ENV, int rd, int rs1, int rs2, int width)
     if(fault)
         return RISCV_AMO_BADADDR;
 
-    env->gpr[rd] = val;
+    if(rd) env->gpr[rd] = val;
+
     env->amoaddr = addr;
     env->amotest = val;
 
@@ -106,11 +107,11 @@ static int rv_do_sc(ENV, int rd, int rs1, int rs2, int width)
     if(fault)
         return RISCV_AMO_BADADDR;
 
-    env->gpr[rd] = 0;
+    if(rd) env->gpr[rd] = 0;
     return RISCV_AMO_OK;
 
 fail:
-    env->gpr[rd] = 1;
+    if(rd) env->gpr[rd] = 1;
     return RISCV_AMO_OK;
 }
 
@@ -161,7 +162,7 @@ static int rv_do_amo(ENV, int func, int rd, int rs1, int rs2, int width)
     if(fault)
         return RISCV_AMO_BADADDR;
     /* No BADINSN on decoding and no BADADDR on read, ok to write rd */
-    env->gpr[rd] = vrd;
+    if(rd) env->gpr[rd] = vrd;
 
     switch(width) {
         case /* 010 */ 2: val32 = val; fault = put_user_s32(val32, addr); break;
