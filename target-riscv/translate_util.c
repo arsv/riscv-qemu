@@ -11,6 +11,24 @@ static void gen_exception(DC, unsigned int excp)
     tcg_temp_free_i32(tmp);
 }
 
+/* The code silently assumes gpr[0] reads 0. And it should, but in case
+   something went wrong and the value got corrupted, do at least give
+   a warning.
+
+   The check is performed before any normal exit from tb, so if corruption
+   happens, it will be signalled reasonably close to the point. */
+
+static void gen_zero_check(DC)
+{
+    TCGLabel* skip = gen_new_label();
+
+    tcg_gen_brcondi_tl(TCG_COND_EQ, cpu_gpr[0], 0, skip);
+    tcg_gen_movi_tl(cpu_pc, dc->pc);
+    gen_exception(dc, EXCP_FAULT);
+
+    gen_set_label(skip);
+}
+
 /* TB terminates on the first branch or jump encountered, so there's
    always at most two exits from the TB: sideways (taken branch) and
    down (anything else). Exceptions terminate TBs as well but need no
@@ -40,9 +58,11 @@ static void gen_exit_tb(DC, int n, target_ulong dest)
     if(dc->singlestep) {
         gen_exception(dc, EXCP_DEBUG);
     } else if(dest != ADDRESS_UNKNOWN && rv_can_jump_to(dc, dest)) {
+        gen_zero_check(dc);
         tcg_gen_goto_tb(n);
         tcg_gen_exit_tb((uintptr_t)dc->tb + n);
     } else {
+        gen_zero_check(dc);
         tcg_gen_exit_tb(0);
     }
     /* Terminate TB even on side exit. There must be a second exit down
