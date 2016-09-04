@@ -38,7 +38,11 @@ struct target_pt_regs {
 	abi_long t6;
 };
 
-#define UNAME_MACHINE "riscv"
+#ifdef TARGET_RISCV32
+#define UNAME_MACHINE "riscv32"
+#else
+#define UNAME_MACHINE "riscv64"
+#endif
 #define UNAME_MINIMUM_RELEASE "3.8.0"
 
 #define TARGET_MINSIGSTKSZ 2048
