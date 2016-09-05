@@ -5911,12 +5911,12 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
     tswap_siginfo(&frame->info, info);
     install_sigtramp(frame->tramp);
 
-    env->gpr[xRA] = (abi_ulong) &frame->tramp; /* return to trampoline */
     env->pc = ka->_sa_handler;
-    env->gpr[xSP] = (abi_ulong) frame;
+    env->gpr[xSP] = frame_addr;
     env->gpr[xA1] = sig;
-    env->gpr[xA2] = (abi_ulong)(&frame->info);
-    env->gpr[xA3] = (abi_ulong)(&frame->uc);
+    env->gpr[xA2] = frame_addr + offsetof(struct target_rt_sigframe, info);
+    env->gpr[xA3] = frame_addr + offsetof(struct target_rt_sigframe, uc);
+    env->gpr[xRA] = frame_addr + offsetof(struct target_rt_sigframe, tramp);
 
     return;
 
