@@ -212,7 +212,9 @@ static void gen_fcvt_dx(DC, TCGf fd, TCGv_ptr ep, TCGv v1, TCGv_i32 vm, int rs2)
 static void gen_fmv_xs(DC, TCGv vd, TCGf f1, unsigned rm)
 {
     switch(rm) {
-#ifndef TARGET_RISCV32
+#ifdef TARGET_RISCV32
+        case /* 000 */ 0: tcg_gen_trunc_i64_tl(vd, f1); break;
+#else
         case /* 000 */ 0: tcg_gen_ext32s_tl(vd, f1); break;
 #endif
         case /* 001 */ 1: gen_helper_fclass_s(vd, f1); break;
@@ -234,7 +236,9 @@ static void gen_fmv_xd(DC, TCGv vd, TCGf f1, unsigned rm)
 static void gen_fmv_sx(DC, TCGf fd, TCGv v1, unsigned rm)
 {
     switch(rm) {
-#ifndef TARGET_RISCV32
+#ifdef TARGET_RISCV32
+        case /* 000 */ 0: tcg_gen_ext_i32_i64(fd, v1); break;
+#else
         case /* 000 */ 0: tcg_gen_ext32s_tl(fd, v1); break;
 #endif
         default: gen_illegal(dc);
