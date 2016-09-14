@@ -1203,6 +1203,10 @@ print_linkat(const struct syscallname *name,
 }
 #endif
 
+#if defined(TARGET_NR_llseek) && !defined(TARGET_NR__llseek)
+#define TARGET_NR__llseek TARGET_NR_llseek
+#endif
+
 #ifdef TARGET_NR__llseek
 static void
 print__llseek(const struct syscallname *name,
