@@ -34,9 +34,7 @@ This implementation follows RISC-V ISA spec version 2.1.
 
 GDB remote debugging works.
 
-Some executables linked against glibc crash, corrupting stack; reason unclear.
-
-Current plans: fix glibc issues, minimalistic system mode.
+Current plans: minimalistic system mode.
 
 
 Building
