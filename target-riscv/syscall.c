@@ -1,3 +1,5 @@
+#ifdef CONFIG_USER_ONLY
+
 #include "qemu/osdep.h"
 #include "qemu.h"
 #include "cpu.h"
@@ -85,3 +87,5 @@ target_long riscv_arch_specific_syscall(CPURISCVState *env, int num,
             return -TARGET_ENOSYS;
     }
 }
+
+#endif

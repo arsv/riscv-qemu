@@ -30,6 +30,8 @@
 
 #define TARGET_PAGE_BITS 12
 #define ELF_MACHINE EM_RISCV
+#define NB_MMU_MODES 4
+#define TARGET_PHYS_ADDR_SPACE_BITS 50
 
 #define MMU_USER_IDX 0
 
@@ -157,7 +159,7 @@ static inline void cpu_get_tb_cpu_state(CPURISCVState *env,
     *flags = 0;
 }
 
-static inline int cpu_mmu_index(CPURISCVState *env)
+static inline int cpu_mmu_index(CPURISCVState *env, bool ifetch)
 {
     return 0;
 }

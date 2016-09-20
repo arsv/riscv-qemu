@@ -28,5 +28,5 @@ void QEMU_NORETURN raise_exception(CPURISCVState *env, uint32_t excp)
     CPUState *cs = CPU(cpu);
 
     cs->exception_index = excp;
-    cpu_loop_exit_restore(cs, 0);
+    cpu_loop_exit_restore(cs, env->pc);
 }

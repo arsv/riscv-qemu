@@ -17,9 +17,13 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "qemu/osdep.h"
-#include "qemu.h"
 #include "cpu.h"
+
+#ifdef CONFIG_USER_ONLY
+
+#include "qemu.h"
 
 /* The code in this file runs outside of cpu_loop and may not raise
    any exceptions. Instead, it should return one of RISCV_AMO_* consts.
@@ -206,3 +210,5 @@ int riscv_cpu_do_usermode_amo(CPUState* cs)
 
     return ret;
 }
+
+#endif
