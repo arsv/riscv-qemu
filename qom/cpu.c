@@ -340,11 +340,12 @@ static void cpu_common_initfn(Object *obj)
     CPUState *cpu = CPU(obj);
     CPUClass *cc = CPU_GET_CLASS(obj);
 
-    cpu->cpu_index = -1;
+    cpu->cpu_index = UNASSIGNED_CPU_INDEX;
     cpu->gdb_num_regs = cpu->gdb_num_g_regs = cc->gdb_num_core_regs;
     qemu_mutex_init(&cpu->work_mutex);
     QTAILQ_INIT(&cpu->breakpoints);
     QTAILQ_INIT(&cpu->watchpoints);
+    bitmap_zero(cpu->trace_dstate, TRACE_VCPU_EVENT_COUNT);
 }
 
 static void cpu_common_finalize(Object *obj)

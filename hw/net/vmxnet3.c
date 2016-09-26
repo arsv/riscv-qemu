@@ -1167,6 +1167,10 @@ vmxnet3_io_bar0_write(void *opaque, hwaddr addr,
 {
     VMXNET3State *s = opaque;
 
+    if (!s->device_active) {
+        return;
+    }
+
     if (VMW_IS_MULTIREG_ADDR(addr, VMXNET3_REG_TXPROD,
                         VMXNET3_DEVICE_MAX_TX_QUEUES, VMXNET3_REG_ALIGN)) {
         int tx_queue_idx =
@@ -2087,7 +2091,7 @@ static void vmxnet3_set_link_status(NetClientState *nc)
 }
 
 static NetClientInfo net_vmxnet3_info = {
-        .type = NET_CLIENT_OPTIONS_KIND_NIC,
+        .type = NET_CLIENT_DRIVER_NIC,
         .size = sizeof(NICState),
         .receive = vmxnet3_receive,
         .link_status_changed = vmxnet3_set_link_status,

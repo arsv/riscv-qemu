@@ -126,7 +126,16 @@ static void release_drive(Object *obj, const char *name, void *opaque)
 
 static char *print_drive(void *ptr)
 {
-    return g_strdup(blk_name(ptr));
+    const char *name;
+
+    name = blk_name(ptr);
+    if (!*name) {
+        BlockDriverState *bs = blk_bs(ptr);
+        if (bs) {
+            name = bdrv_get_node_name(bs);
+        }
+    }
+    return g_strdup(name);
 }
 
 static void get_drive(Object *obj, Visitor *v, const char *name, void *opaque,
@@ -247,7 +256,7 @@ static void set_netdev(Object *obj, Visitor *v, const char *name,
     }
 
     queues = qemu_find_net_clients_except(str, peers,
-                                          NET_CLIENT_OPTIONS_KIND_NIC,
+                                          NET_CLIENT_DRIVER_NIC,
                                           MAX_QUEUE_NUM);
     if (queues == 0) {
         err = -ENOENT;

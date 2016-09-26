@@ -161,7 +161,7 @@ static bool virtio_pci_modern_state_needed(void *opaque)
 {
     VirtIOPCIProxy *proxy = opaque;
 
-    return !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_MODERN);
+    return virtio_pci_modern(proxy);
 }
 
 static const VMStateDescription vmstate_virtio_pci_modern_state = {
@@ -300,8 +300,8 @@ static int virtio_pci_ioeventfd_assign(DeviceState *d, EventNotifier *notifier,
     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
     VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
     VirtQueue *vq = virtio_get_queue(vdev, n);
-    bool legacy = !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_LEGACY);
-    bool modern = !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_MODERN);
+    bool legacy = virtio_pci_legacy(proxy);
+    bool modern = virtio_pci_modern(proxy);
     bool fast_mmio = kvm_ioeventfd_any_length_enabled();
     bool modern_pio = proxy->flags & VIRTIO_PCI_FLAG_MODERN_PIO_NOTIFY;
     MemoryRegion *modern_mr = &proxy->notify.mr;
@@ -699,14 +699,13 @@ static uint32_t virtio_read_config(PCIDevice *pci_dev,
 
 static int kvm_virtio_pci_vq_vector_use(VirtIOPCIProxy *proxy,
                                         unsigned int queue_no,
-                                        unsigned int vector,
-                                        MSIMessage msg)
+                                        unsigned int vector)
 {
     VirtIOIRQFD *irqfd = &proxy->vector_irqfd[vector];
     int ret;
 
     if (irqfd->users == 0) {
-        ret = kvm_irqchip_add_msi_route(kvm_state, msg, &proxy->pci_dev);
+        ret = kvm_irqchip_add_msi_route(kvm_state, vector, &proxy->pci_dev);
         if (ret < 0) {
             return ret;
         }
@@ -757,7 +756,6 @@ static int kvm_virtio_pci_vector_use(VirtIOPCIProxy *proxy, int nvqs)
     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
     unsigned int vector;
     int ret, queue_no;
-    MSIMessage msg;
 
     for (queue_no = 0; queue_no < nvqs; queue_no++) {
         if (!virtio_queue_get_num(vdev, queue_no)) {
@@ -767,8 +765,7 @@ static int kvm_virtio_pci_vector_use(VirtIOPCIProxy *proxy, int nvqs)
         if (vector >= msix_nr_vectors_allocated(dev)) {
             continue;
         }
-        msg = msix_get_message(dev, vector);
-        ret = kvm_virtio_pci_vq_vector_use(proxy, queue_no, vector, msg);
+        ret = kvm_virtio_pci_vq_vector_use(proxy, queue_no, vector);
         if (ret < 0) {
             goto undo;
         }
@@ -845,6 +842,7 @@ static int virtio_pci_vq_vector_unmask(VirtIOPCIProxy *proxy,
             if (ret < 0) {
                 return ret;
             }
+            kvm_irqchip_commit_routes(kvm_state);
         }
     }
 
@@ -1576,8 +1574,8 @@ static void virtio_pci_device_plugged(DeviceState *d, Error **errp)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(d);
     VirtioBusState *bus = &proxy->bus;
-    bool legacy = !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_LEGACY);
-    bool modern = !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_MODERN);
+    bool legacy = virtio_pci_legacy(proxy);
+    bool modern = virtio_pci_modern(proxy);
     bool modern_pio = proxy->flags & VIRTIO_PCI_FLAG_MODERN_PIO_NOTIFY;
     uint8_t *config;
     uint32_t size;
@@ -1696,7 +1694,7 @@ static void virtio_pci_device_plugged(DeviceState *d, Error **errp)
 static void virtio_pci_device_unplugged(DeviceState *d)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(d);
-    bool modern = !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_MODERN);
+    bool modern = virtio_pci_modern(proxy);
     bool modern_pio = proxy->flags & VIRTIO_PCI_FLAG_MODERN_PIO_NOTIFY;
 
     virtio_pci_stop_ioeventfd(proxy);
@@ -1716,6 +1714,8 @@ static void virtio_pci_realize(PCIDevice *pci_dev, Error **errp)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(pci_dev);
     VirtioPCIClass *k = VIRTIO_PCI_GET_CLASS(pci_dev);
+    bool pcie_port = pci_bus_is_express(pci_dev->bus) &&
+                     !pci_bus_is_root(pci_dev->bus);
 
     /*
      * virtio pci bar layout used by default.
@@ -1766,8 +1766,11 @@ static void virtio_pci_realize(PCIDevice *pci_dev, Error **errp)
 
     address_space_init(&proxy->modern_as, &proxy->modern_cfg, "virtio-pci-cfg-as");
 
-    if (pci_is_express(pci_dev) && pci_bus_is_express(pci_dev->bus) &&
-        !pci_bus_is_root(pci_dev->bus)) {
+    if (proxy->disable_legacy == ON_OFF_AUTO_AUTO) {
+        proxy->disable_legacy = pcie_port ? ON_OFF_AUTO_ON : ON_OFF_AUTO_OFF;
+    }
+
+    if (pcie_port && pci_is_express(pci_dev)) {
         int pos;
 
         pos = pcie_endpoint_cap_init(pci_dev, 0);
@@ -1821,10 +1824,9 @@ static void virtio_pci_reset(DeviceState *qdev)
 static Property virtio_pci_properties[] = {
     DEFINE_PROP_BIT("virtio-pci-bus-master-bug-migration", VirtIOPCIProxy, flags,
                     VIRTIO_PCI_FLAG_BUS_MASTER_BUG_MIGRATION_BIT, false),
-    DEFINE_PROP_BIT("disable-legacy", VirtIOPCIProxy, flags,
-                    VIRTIO_PCI_FLAG_DISABLE_LEGACY_BIT, false),
-    DEFINE_PROP_BIT("disable-modern", VirtIOPCIProxy, flags,
-                    VIRTIO_PCI_FLAG_DISABLE_MODERN_BIT, true),
+    DEFINE_PROP_ON_OFF_AUTO("disable-legacy", VirtIOPCIProxy, disable_legacy,
+                            ON_OFF_AUTO_AUTO),
+    DEFINE_PROP_BOOL("disable-modern", VirtIOPCIProxy, disable_modern, false),
     DEFINE_PROP_BIT("migrate-extra", VirtIOPCIProxy, flags,
                     VIRTIO_PCI_FLAG_MIGRATE_EXTRA_BIT, true),
     DEFINE_PROP_BIT("modern-pio-notify", VirtIOPCIProxy, flags,
@@ -1841,7 +1843,7 @@ static void virtio_pci_dc_realize(DeviceState *qdev, Error **errp)
     PCIDevice *pci_dev = &proxy->pci_dev;
 
     if (!(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_PCIE) &&
-        !(proxy->flags & VIRTIO_PCI_FLAG_DISABLE_MODERN)) {
+        virtio_pci_modern(proxy)) {
         pci_dev->cap_present |= QEMU_PCI_CAP_EXPRESS;
     }
 
@@ -2303,9 +2305,7 @@ static void virtio_input_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     DeviceState *vdev = DEVICE(&vinput->vdev);
 
     qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
-    /* force virtio-1.0 */
-    vpci_dev->flags &= ~VIRTIO_PCI_FLAG_DISABLE_MODERN;
-    vpci_dev->flags |= VIRTIO_PCI_FLAG_DISABLE_LEGACY;
+    virtio_pci_force_virtio_1(vpci_dev);
     object_property_set_bool(OBJECT(vdev), true, "realized", errp);
 }
 

@@ -100,9 +100,11 @@ int __clone2(int (*fn)(void *), void *child_stack_base,
 #include <linux/route.h>
 #include <linux/filter.h>
 #include <linux/blkpg.h>
+#include <netpacket/packet.h>
 #include <linux/netlink.h>
 #ifdef CONFIG_RTNETLINK
 #include <linux/rtnetlink.h>
+#include <linux/if_bridge.h>
 #endif
 #include <linux/audit.h>
 #include "linux_loop.h"
@@ -285,6 +287,161 @@ static bitmask_transtbl fcntl_flags_tbl[] = {
   { TARGET_O_LARGEFILE, TARGET_O_LARGEFILE, O_LARGEFILE, O_LARGEFILE, },
 #endif
   { 0, 0, 0, 0 }
+};
+
+enum {
+    QEMU_IFLA_BR_UNSPEC,
+    QEMU_IFLA_BR_FORWARD_DELAY,
+    QEMU_IFLA_BR_HELLO_TIME,
+    QEMU_IFLA_BR_MAX_AGE,
+    QEMU_IFLA_BR_AGEING_TIME,
+    QEMU_IFLA_BR_STP_STATE,
+    QEMU_IFLA_BR_PRIORITY,
+    QEMU_IFLA_BR_VLAN_FILTERING,
+    QEMU_IFLA_BR_VLAN_PROTOCOL,
+    QEMU_IFLA_BR_GROUP_FWD_MASK,
+    QEMU_IFLA_BR_ROOT_ID,
+    QEMU_IFLA_BR_BRIDGE_ID,
+    QEMU_IFLA_BR_ROOT_PORT,
+    QEMU_IFLA_BR_ROOT_PATH_COST,
+    QEMU_IFLA_BR_TOPOLOGY_CHANGE,
+    QEMU_IFLA_BR_TOPOLOGY_CHANGE_DETECTED,
+    QEMU_IFLA_BR_HELLO_TIMER,
+    QEMU_IFLA_BR_TCN_TIMER,
+    QEMU_IFLA_BR_TOPOLOGY_CHANGE_TIMER,
+    QEMU_IFLA_BR_GC_TIMER,
+    QEMU_IFLA_BR_GROUP_ADDR,
+    QEMU_IFLA_BR_FDB_FLUSH,
+    QEMU_IFLA_BR_MCAST_ROUTER,
+    QEMU_IFLA_BR_MCAST_SNOOPING,
+    QEMU_IFLA_BR_MCAST_QUERY_USE_IFADDR,
+    QEMU_IFLA_BR_MCAST_QUERIER,
+    QEMU_IFLA_BR_MCAST_HASH_ELASTICITY,
+    QEMU_IFLA_BR_MCAST_HASH_MAX,
+    QEMU_IFLA_BR_MCAST_LAST_MEMBER_CNT,
+    QEMU_IFLA_BR_MCAST_STARTUP_QUERY_CNT,
+    QEMU_IFLA_BR_MCAST_LAST_MEMBER_INTVL,
+    QEMU_IFLA_BR_MCAST_MEMBERSHIP_INTVL,
+    QEMU_IFLA_BR_MCAST_QUERIER_INTVL,
+    QEMU_IFLA_BR_MCAST_QUERY_INTVL,
+    QEMU_IFLA_BR_MCAST_QUERY_RESPONSE_INTVL,
+    QEMU_IFLA_BR_MCAST_STARTUP_QUERY_INTVL,
+    QEMU_IFLA_BR_NF_CALL_IPTABLES,
+    QEMU_IFLA_BR_NF_CALL_IP6TABLES,
+    QEMU_IFLA_BR_NF_CALL_ARPTABLES,
+    QEMU_IFLA_BR_VLAN_DEFAULT_PVID,
+    QEMU_IFLA_BR_PAD,
+    QEMU_IFLA_BR_VLAN_STATS_ENABLED,
+    QEMU_IFLA_BR_MCAST_STATS_ENABLED,
+    QEMU___IFLA_BR_MAX,
+};
+
+enum {
+    QEMU_IFLA_UNSPEC,
+    QEMU_IFLA_ADDRESS,
+    QEMU_IFLA_BROADCAST,
+    QEMU_IFLA_IFNAME,
+    QEMU_IFLA_MTU,
+    QEMU_IFLA_LINK,
+    QEMU_IFLA_QDISC,
+    QEMU_IFLA_STATS,
+    QEMU_IFLA_COST,
+    QEMU_IFLA_PRIORITY,
+    QEMU_IFLA_MASTER,
+    QEMU_IFLA_WIRELESS,
+    QEMU_IFLA_PROTINFO,
+    QEMU_IFLA_TXQLEN,
+    QEMU_IFLA_MAP,
+    QEMU_IFLA_WEIGHT,
+    QEMU_IFLA_OPERSTATE,
+    QEMU_IFLA_LINKMODE,
+    QEMU_IFLA_LINKINFO,
+    QEMU_IFLA_NET_NS_PID,
+    QEMU_IFLA_IFALIAS,
+    QEMU_IFLA_NUM_VF,
+    QEMU_IFLA_VFINFO_LIST,
+    QEMU_IFLA_STATS64,
+    QEMU_IFLA_VF_PORTS,
+    QEMU_IFLA_PORT_SELF,
+    QEMU_IFLA_AF_SPEC,
+    QEMU_IFLA_GROUP,
+    QEMU_IFLA_NET_NS_FD,
+    QEMU_IFLA_EXT_MASK,
+    QEMU_IFLA_PROMISCUITY,
+    QEMU_IFLA_NUM_TX_QUEUES,
+    QEMU_IFLA_NUM_RX_QUEUES,
+    QEMU_IFLA_CARRIER,
+    QEMU_IFLA_PHYS_PORT_ID,
+    QEMU_IFLA_CARRIER_CHANGES,
+    QEMU_IFLA_PHYS_SWITCH_ID,
+    QEMU_IFLA_LINK_NETNSID,
+    QEMU_IFLA_PHYS_PORT_NAME,
+    QEMU_IFLA_PROTO_DOWN,
+    QEMU_IFLA_GSO_MAX_SEGS,
+    QEMU_IFLA_GSO_MAX_SIZE,
+    QEMU_IFLA_PAD,
+    QEMU_IFLA_XDP,
+    QEMU___IFLA_MAX
+};
+
+enum {
+    QEMU_IFLA_BRPORT_UNSPEC,
+    QEMU_IFLA_BRPORT_STATE,
+    QEMU_IFLA_BRPORT_PRIORITY,
+    QEMU_IFLA_BRPORT_COST,
+    QEMU_IFLA_BRPORT_MODE,
+    QEMU_IFLA_BRPORT_GUARD,
+    QEMU_IFLA_BRPORT_PROTECT,
+    QEMU_IFLA_BRPORT_FAST_LEAVE,
+    QEMU_IFLA_BRPORT_LEARNING,
+    QEMU_IFLA_BRPORT_UNICAST_FLOOD,
+    QEMU_IFLA_BRPORT_PROXYARP,
+    QEMU_IFLA_BRPORT_LEARNING_SYNC,
+    QEMU_IFLA_BRPORT_PROXYARP_WIFI,
+    QEMU_IFLA_BRPORT_ROOT_ID,
+    QEMU_IFLA_BRPORT_BRIDGE_ID,
+    QEMU_IFLA_BRPORT_DESIGNATED_PORT,
+    QEMU_IFLA_BRPORT_DESIGNATED_COST,
+    QEMU_IFLA_BRPORT_ID,
+    QEMU_IFLA_BRPORT_NO,
+    QEMU_IFLA_BRPORT_TOPOLOGY_CHANGE_ACK,
+    QEMU_IFLA_BRPORT_CONFIG_PENDING,
+    QEMU_IFLA_BRPORT_MESSAGE_AGE_TIMER,
+    QEMU_IFLA_BRPORT_FORWARD_DELAY_TIMER,
+    QEMU_IFLA_BRPORT_HOLD_TIMER,
+    QEMU_IFLA_BRPORT_FLUSH,
+    QEMU_IFLA_BRPORT_MULTICAST_ROUTER,
+    QEMU_IFLA_BRPORT_PAD,
+    QEMU___IFLA_BRPORT_MAX
+};
+
+enum {
+    QEMU_IFLA_INFO_UNSPEC,
+    QEMU_IFLA_INFO_KIND,
+    QEMU_IFLA_INFO_DATA,
+    QEMU_IFLA_INFO_XSTATS,
+    QEMU_IFLA_INFO_SLAVE_KIND,
+    QEMU_IFLA_INFO_SLAVE_DATA,
+    QEMU___IFLA_INFO_MAX,
+};
+
+enum {
+    QEMU_IFLA_INET_UNSPEC,
+    QEMU_IFLA_INET_CONF,
+    QEMU___IFLA_INET_MAX,
+};
+
+enum {
+    QEMU_IFLA_INET6_UNSPEC,
+    QEMU_IFLA_INET6_FLAGS,
+    QEMU_IFLA_INET6_CONF,
+    QEMU_IFLA_INET6_STATS,
+    QEMU_IFLA_INET6_MCAST,
+    QEMU_IFLA_INET6_CACHEINFO,
+    QEMU_IFLA_INET6_ICMP6STATS,
+    QEMU_IFLA_INET6_TOKEN,
+    QEMU_IFLA_INET6_ADDR_GEN_MODE,
+    QEMU___IFLA_INET6_MAX
 };
 
 typedef abi_long (*TargetFdDataFunc)(void *, size_t);
@@ -837,7 +994,7 @@ void target_set_brk(abi_ulong new_brk)
 abi_long do_brk(abi_ulong new_brk)
 {
     abi_long mapped_addr;
-    int	new_alloc_size;
+    abi_ulong new_alloc_size;
 
     DEBUGF_BRK("do_brk(" TARGET_ABI_FMT_lx ") -> ", new_brk);
 
@@ -1374,15 +1531,26 @@ static inline abi_long host_to_target_sockaddr(abi_ulong target_addr,
 {
     struct target_sockaddr *target_saddr;
 
+    if (len == 0) {
+        return 0;
+    }
+
     target_saddr = lock_user(VERIFY_WRITE, target_addr, len, 0);
     if (!target_saddr)
         return -TARGET_EFAULT;
     memcpy(target_saddr, addr, len);
-    target_saddr->sa_family = tswap16(addr->sa_family);
-    if (addr->sa_family == AF_NETLINK) {
+    if (len >= offsetof(struct target_sockaddr, sa_family) +
+        sizeof(target_saddr->sa_family)) {
+        target_saddr->sa_family = tswap16(addr->sa_family);
+    }
+    if (addr->sa_family == AF_NETLINK && len >= sizeof(struct sockaddr_nl)) {
         struct sockaddr_nl *target_nl = (struct sockaddr_nl *)target_saddr;
         target_nl->nl_pid = tswap32(target_nl->nl_pid);
         target_nl->nl_groups = tswap32(target_nl->nl_groups);
+    } else if (addr->sa_family == AF_PACKET) {
+        struct sockaddr_ll *target_ll = (struct sockaddr_ll *)target_saddr;
+        target_ll->sll_ifindex = tswap32(target_ll->sll_ifindex);
+        target_ll->sll_hatype = tswap16(target_ll->sll_hatype);
     }
     unlock_user(target_saddr, target_addr, len);
 
@@ -1707,6 +1875,33 @@ static abi_long target_to_host_for_each_nlmsg(struct nlmsghdr *nlh,
 }
 
 #ifdef CONFIG_RTNETLINK
+static abi_long host_to_target_for_each_nlattr(struct nlattr *nlattr,
+                                               size_t len, void *context,
+                                               abi_long (*host_to_target_nlattr)
+                                                        (struct nlattr *,
+                                                         void *context))
+{
+    unsigned short nla_len;
+    abi_long ret;
+
+    while (len > sizeof(struct nlattr)) {
+        nla_len = nlattr->nla_len;
+        if (nla_len < sizeof(struct nlattr) ||
+            nla_len > len) {
+            break;
+        }
+        ret = host_to_target_nlattr(nlattr, context);
+        nlattr->nla_len = tswap16(nlattr->nla_len);
+        nlattr->nla_type = tswap16(nlattr->nla_type);
+        if (ret < 0) {
+            return ret;
+        }
+        len -= NLA_ALIGN(nla_len);
+        nlattr = (struct nlattr *)(((char *)nlattr) + NLA_ALIGN(nla_len));
+    }
+    return 0;
+}
+
 static abi_long host_to_target_for_each_rtattr(struct rtattr *rtattr,
                                                size_t len,
                                                abi_long (*host_to_target_rtattr)
@@ -1733,46 +1928,326 @@ static abi_long host_to_target_for_each_rtattr(struct rtattr *rtattr,
     return 0;
 }
 
+#define NLA_DATA(nla) ((void *)((char *)(nla)) + NLA_HDRLEN)
+
+static abi_long host_to_target_data_bridge_nlattr(struct nlattr *nlattr,
+                                                  void *context)
+{
+    uint16_t *u16;
+    uint32_t *u32;
+    uint64_t *u64;
+
+    switch (nlattr->nla_type) {
+    /* no data */
+    case QEMU_IFLA_BR_FDB_FLUSH:
+        break;
+    /* binary */
+    case QEMU_IFLA_BR_GROUP_ADDR:
+        break;
+    /* uint8_t */
+    case QEMU_IFLA_BR_VLAN_FILTERING:
+    case QEMU_IFLA_BR_TOPOLOGY_CHANGE:
+    case QEMU_IFLA_BR_TOPOLOGY_CHANGE_DETECTED:
+    case QEMU_IFLA_BR_MCAST_ROUTER:
+    case QEMU_IFLA_BR_MCAST_SNOOPING:
+    case QEMU_IFLA_BR_MCAST_QUERY_USE_IFADDR:
+    case QEMU_IFLA_BR_MCAST_QUERIER:
+    case QEMU_IFLA_BR_NF_CALL_IPTABLES:
+    case QEMU_IFLA_BR_NF_CALL_IP6TABLES:
+    case QEMU_IFLA_BR_NF_CALL_ARPTABLES:
+        break;
+    /* uint16_t */
+    case QEMU_IFLA_BR_PRIORITY:
+    case QEMU_IFLA_BR_VLAN_PROTOCOL:
+    case QEMU_IFLA_BR_GROUP_FWD_MASK:
+    case QEMU_IFLA_BR_ROOT_PORT:
+    case QEMU_IFLA_BR_VLAN_DEFAULT_PVID:
+        u16 = NLA_DATA(nlattr);
+        *u16 = tswap16(*u16);
+        break;
+    /* uint32_t */
+    case QEMU_IFLA_BR_FORWARD_DELAY:
+    case QEMU_IFLA_BR_HELLO_TIME:
+    case QEMU_IFLA_BR_MAX_AGE:
+    case QEMU_IFLA_BR_AGEING_TIME:
+    case QEMU_IFLA_BR_STP_STATE:
+    case QEMU_IFLA_BR_ROOT_PATH_COST:
+    case QEMU_IFLA_BR_MCAST_HASH_ELASTICITY:
+    case QEMU_IFLA_BR_MCAST_HASH_MAX:
+    case QEMU_IFLA_BR_MCAST_LAST_MEMBER_CNT:
+    case QEMU_IFLA_BR_MCAST_STARTUP_QUERY_CNT:
+        u32 = NLA_DATA(nlattr);
+        *u32 = tswap32(*u32);
+        break;
+    /* uint64_t */
+    case QEMU_IFLA_BR_HELLO_TIMER:
+    case QEMU_IFLA_BR_TCN_TIMER:
+    case QEMU_IFLA_BR_GC_TIMER:
+    case QEMU_IFLA_BR_TOPOLOGY_CHANGE_TIMER:
+    case QEMU_IFLA_BR_MCAST_LAST_MEMBER_INTVL:
+    case QEMU_IFLA_BR_MCAST_MEMBERSHIP_INTVL:
+    case QEMU_IFLA_BR_MCAST_QUERIER_INTVL:
+    case QEMU_IFLA_BR_MCAST_QUERY_INTVL:
+    case QEMU_IFLA_BR_MCAST_QUERY_RESPONSE_INTVL:
+    case QEMU_IFLA_BR_MCAST_STARTUP_QUERY_INTVL:
+        u64 = NLA_DATA(nlattr);
+        *u64 = tswap64(*u64);
+        break;
+    /* ifla_bridge_id: uin8_t[] */
+    case QEMU_IFLA_BR_ROOT_ID:
+    case QEMU_IFLA_BR_BRIDGE_ID:
+        break;
+    default:
+        gemu_log("Unknown QEMU_IFLA_BR type %d\n", nlattr->nla_type);
+        break;
+    }
+    return 0;
+}
+
+static abi_long host_to_target_slave_data_bridge_nlattr(struct nlattr *nlattr,
+                                                        void *context)
+{
+    uint16_t *u16;
+    uint32_t *u32;
+    uint64_t *u64;
+
+    switch (nlattr->nla_type) {
+    /* uint8_t */
+    case QEMU_IFLA_BRPORT_STATE:
+    case QEMU_IFLA_BRPORT_MODE:
+    case QEMU_IFLA_BRPORT_GUARD:
+    case QEMU_IFLA_BRPORT_PROTECT:
+    case QEMU_IFLA_BRPORT_FAST_LEAVE:
+    case QEMU_IFLA_BRPORT_LEARNING:
+    case QEMU_IFLA_BRPORT_UNICAST_FLOOD:
+    case QEMU_IFLA_BRPORT_PROXYARP:
+    case QEMU_IFLA_BRPORT_LEARNING_SYNC:
+    case QEMU_IFLA_BRPORT_PROXYARP_WIFI:
+    case QEMU_IFLA_BRPORT_TOPOLOGY_CHANGE_ACK:
+    case QEMU_IFLA_BRPORT_CONFIG_PENDING:
+    case QEMU_IFLA_BRPORT_MULTICAST_ROUTER:
+        break;
+    /* uint16_t */
+    case QEMU_IFLA_BRPORT_PRIORITY:
+    case QEMU_IFLA_BRPORT_DESIGNATED_PORT:
+    case QEMU_IFLA_BRPORT_DESIGNATED_COST:
+    case QEMU_IFLA_BRPORT_ID:
+    case QEMU_IFLA_BRPORT_NO:
+        u16 = NLA_DATA(nlattr);
+        *u16 = tswap16(*u16);
+        break;
+    /* uin32_t */
+    case QEMU_IFLA_BRPORT_COST:
+        u32 = NLA_DATA(nlattr);
+        *u32 = tswap32(*u32);
+        break;
+    /* uint64_t */
+    case QEMU_IFLA_BRPORT_MESSAGE_AGE_TIMER:
+    case QEMU_IFLA_BRPORT_FORWARD_DELAY_TIMER:
+    case QEMU_IFLA_BRPORT_HOLD_TIMER:
+        u64 = NLA_DATA(nlattr);
+        *u64 = tswap64(*u64);
+        break;
+    /* ifla_bridge_id: uint8_t[] */
+    case QEMU_IFLA_BRPORT_ROOT_ID:
+    case QEMU_IFLA_BRPORT_BRIDGE_ID:
+        break;
+    default:
+        gemu_log("Unknown QEMU_IFLA_BRPORT type %d\n", nlattr->nla_type);
+        break;
+    }
+    return 0;
+}
+
+struct linkinfo_context {
+    int len;
+    char *name;
+    int slave_len;
+    char *slave_name;
+};
+
+static abi_long host_to_target_data_linkinfo_nlattr(struct nlattr *nlattr,
+                                                    void *context)
+{
+    struct linkinfo_context *li_context = context;
+
+    switch (nlattr->nla_type) {
+    /* string */
+    case QEMU_IFLA_INFO_KIND:
+        li_context->name = NLA_DATA(nlattr);
+        li_context->len = nlattr->nla_len - NLA_HDRLEN;
+        break;
+    case QEMU_IFLA_INFO_SLAVE_KIND:
+        li_context->slave_name = NLA_DATA(nlattr);
+        li_context->slave_len = nlattr->nla_len - NLA_HDRLEN;
+        break;
+    /* stats */
+    case QEMU_IFLA_INFO_XSTATS:
+        /* FIXME: only used by CAN */
+        break;
+    /* nested */
+    case QEMU_IFLA_INFO_DATA:
+        if (strncmp(li_context->name, "bridge",
+                    li_context->len) == 0) {
+            return host_to_target_for_each_nlattr(NLA_DATA(nlattr),
+                                                  nlattr->nla_len,
+                                                  NULL,
+                                             host_to_target_data_bridge_nlattr);
+        } else {
+            gemu_log("Unknown QEMU_IFLA_INFO_KIND %s\n", li_context->name);
+        }
+        break;
+    case QEMU_IFLA_INFO_SLAVE_DATA:
+        if (strncmp(li_context->slave_name, "bridge",
+                    li_context->slave_len) == 0) {
+            return host_to_target_for_each_nlattr(NLA_DATA(nlattr),
+                                                  nlattr->nla_len,
+                                                  NULL,
+                                       host_to_target_slave_data_bridge_nlattr);
+        } else {
+            gemu_log("Unknown QEMU_IFLA_INFO_SLAVE_KIND %s\n",
+                     li_context->slave_name);
+        }
+        break;
+    default:
+        gemu_log("Unknown host QEMU_IFLA_INFO type: %d\n", nlattr->nla_type);
+        break;
+    }
+
+    return 0;
+}
+
+static abi_long host_to_target_data_inet_nlattr(struct nlattr *nlattr,
+                                                void *context)
+{
+    uint32_t *u32;
+    int i;
+
+    switch (nlattr->nla_type) {
+    case QEMU_IFLA_INET_CONF:
+        u32 = NLA_DATA(nlattr);
+        for (i = 0; i < (nlattr->nla_len - NLA_HDRLEN) / sizeof(*u32);
+             i++) {
+            u32[i] = tswap32(u32[i]);
+        }
+        break;
+    default:
+        gemu_log("Unknown host AF_INET type: %d\n", nlattr->nla_type);
+    }
+    return 0;
+}
+
+static abi_long host_to_target_data_inet6_nlattr(struct nlattr *nlattr,
+                                                void *context)
+{
+    uint32_t *u32;
+    uint64_t *u64;
+    struct ifla_cacheinfo *ci;
+    int i;
+
+    switch (nlattr->nla_type) {
+    /* binaries */
+    case QEMU_IFLA_INET6_TOKEN:
+        break;
+    /* uint8_t */
+    case QEMU_IFLA_INET6_ADDR_GEN_MODE:
+        break;
+    /* uint32_t */
+    case QEMU_IFLA_INET6_FLAGS:
+        u32 = NLA_DATA(nlattr);
+        *u32 = tswap32(*u32);
+        break;
+    /* uint32_t[] */
+    case QEMU_IFLA_INET6_CONF:
+        u32 = NLA_DATA(nlattr);
+        for (i = 0; i < (nlattr->nla_len - NLA_HDRLEN) / sizeof(*u32);
+             i++) {
+            u32[i] = tswap32(u32[i]);
+        }
+        break;
+    /* ifla_cacheinfo */
+    case QEMU_IFLA_INET6_CACHEINFO:
+        ci = NLA_DATA(nlattr);
+        ci->max_reasm_len = tswap32(ci->max_reasm_len);
+        ci->tstamp = tswap32(ci->tstamp);
+        ci->reachable_time = tswap32(ci->reachable_time);
+        ci->retrans_time = tswap32(ci->retrans_time);
+        break;
+    /* uint64_t[] */
+    case QEMU_IFLA_INET6_STATS:
+    case QEMU_IFLA_INET6_ICMP6STATS:
+        u64 = NLA_DATA(nlattr);
+        for (i = 0; i < (nlattr->nla_len - NLA_HDRLEN) / sizeof(*u64);
+             i++) {
+            u64[i] = tswap64(u64[i]);
+        }
+        break;
+    default:
+        gemu_log("Unknown host AF_INET6 type: %d\n", nlattr->nla_type);
+    }
+    return 0;
+}
+
+static abi_long host_to_target_data_spec_nlattr(struct nlattr *nlattr,
+                                                    void *context)
+{
+    switch (nlattr->nla_type) {
+    case AF_INET:
+        return host_to_target_for_each_nlattr(NLA_DATA(nlattr), nlattr->nla_len,
+                                              NULL,
+                                             host_to_target_data_inet_nlattr);
+    case AF_INET6:
+        return host_to_target_for_each_nlattr(NLA_DATA(nlattr), nlattr->nla_len,
+                                              NULL,
+                                             host_to_target_data_inet6_nlattr);
+    default:
+        gemu_log("Unknown host AF_SPEC type: %d\n", nlattr->nla_type);
+        break;
+    }
+    return 0;
+}
+
 static abi_long host_to_target_data_link_rtattr(struct rtattr *rtattr)
 {
     uint32_t *u32;
     struct rtnl_link_stats *st;
     struct rtnl_link_stats64 *st64;
     struct rtnl_link_ifmap *map;
+    struct linkinfo_context li_context;
 
     switch (rtattr->rta_type) {
     /* binary stream */
-    case IFLA_ADDRESS:
-    case IFLA_BROADCAST:
+    case QEMU_IFLA_ADDRESS:
+    case QEMU_IFLA_BROADCAST:
     /* string */
-    case IFLA_IFNAME:
-    case IFLA_QDISC:
+    case QEMU_IFLA_IFNAME:
+    case QEMU_IFLA_QDISC:
         break;
     /* uin8_t */
-    case IFLA_OPERSTATE:
-    case IFLA_LINKMODE:
-    case IFLA_CARRIER:
-    case IFLA_PROTO_DOWN:
+    case QEMU_IFLA_OPERSTATE:
+    case QEMU_IFLA_LINKMODE:
+    case QEMU_IFLA_CARRIER:
+    case QEMU_IFLA_PROTO_DOWN:
         break;
     /* uint32_t */
-    case IFLA_MTU:
-    case IFLA_LINK:
-    case IFLA_WEIGHT:
-    case IFLA_TXQLEN:
-    case IFLA_CARRIER_CHANGES:
-    case IFLA_NUM_RX_QUEUES:
-    case IFLA_NUM_TX_QUEUES:
-    case IFLA_PROMISCUITY:
-    case IFLA_EXT_MASK:
-    case IFLA_LINK_NETNSID:
-    case IFLA_GROUP:
-    case IFLA_MASTER:
-    case IFLA_NUM_VF:
+    case QEMU_IFLA_MTU:
+    case QEMU_IFLA_LINK:
+    case QEMU_IFLA_WEIGHT:
+    case QEMU_IFLA_TXQLEN:
+    case QEMU_IFLA_CARRIER_CHANGES:
+    case QEMU_IFLA_NUM_RX_QUEUES:
+    case QEMU_IFLA_NUM_TX_QUEUES:
+    case QEMU_IFLA_PROMISCUITY:
+    case QEMU_IFLA_EXT_MASK:
+    case QEMU_IFLA_LINK_NETNSID:
+    case QEMU_IFLA_GROUP:
+    case QEMU_IFLA_MASTER:
+    case QEMU_IFLA_NUM_VF:
         u32 = RTA_DATA(rtattr);
         *u32 = tswap32(*u32);
         break;
     /* struct rtnl_link_stats */
-    case IFLA_STATS:
+    case QEMU_IFLA_STATS:
         st = RTA_DATA(rtattr);
         st->rx_packets = tswap32(st->rx_packets);
         st->tx_packets = tswap32(st->tx_packets);
@@ -1805,7 +2280,7 @@ static abi_long host_to_target_data_link_rtattr(struct rtattr *rtattr)
         st->tx_compressed = tswap32(st->tx_compressed);
         break;
     /* struct rtnl_link_stats64 */
-    case IFLA_STATS64:
+    case QEMU_IFLA_STATS64:
         st64 = RTA_DATA(rtattr);
         st64->rx_packets = tswap64(st64->rx_packets);
         st64->tx_packets = tswap64(st64->tx_packets);
@@ -1838,7 +2313,7 @@ static abi_long host_to_target_data_link_rtattr(struct rtattr *rtattr)
         st64->tx_compressed = tswap64(st64->tx_compressed);
         break;
     /* struct rtnl_link_ifmap */
-    case IFLA_MAP:
+    case QEMU_IFLA_MAP:
         map = RTA_DATA(rtattr);
         map->mem_start = tswap64(map->mem_start);
         map->mem_end = tswap64(map->mem_end);
@@ -1846,13 +2321,17 @@ static abi_long host_to_target_data_link_rtattr(struct rtattr *rtattr)
         map->irq = tswap16(map->irq);
         break;
     /* nested */
-    case IFLA_AF_SPEC:
-    case IFLA_LINKINFO:
-        /* FIXME: implement nested type */
-        gemu_log("Unimplemented nested type %d\n", rtattr->rta_type);
-        break;
+    case QEMU_IFLA_LINKINFO:
+        memset(&li_context, 0, sizeof(li_context));
+        return host_to_target_for_each_nlattr(RTA_DATA(rtattr), rtattr->rta_len,
+                                              &li_context,
+                                           host_to_target_data_linkinfo_nlattr);
+    case QEMU_IFLA_AF_SPEC:
+        return host_to_target_for_each_nlattr(RTA_DATA(rtattr), rtattr->rta_len,
+                                              NULL,
+                                             host_to_target_data_spec_nlattr);
     default:
-        gemu_log("Unknown host IFLA type: %d\n", rtattr->rta_type);
+        gemu_log("Unknown host QEMU_IFLA type: %d\n", rtattr->rta_type);
         break;
     }
     return 0;
@@ -2019,7 +2498,7 @@ static abi_long target_to_host_data_link_rtattr(struct rtattr *rtattr)
 {
     switch (rtattr->rta_type) {
     default:
-        gemu_log("Unknown target IFLA type: %d\n", rtattr->rta_type);
+        gemu_log("Unknown target QEMU_IFLA type: %d\n", rtattr->rta_type);
         break;
     }
     return 0;
@@ -2826,12 +3305,26 @@ static TargetFdTrans target_packet_trans = {
 #ifdef CONFIG_RTNETLINK
 static abi_long netlink_route_target_to_host(void *buf, size_t len)
 {
-    return target_to_host_nlmsg_route(buf, len);
+    abi_long ret;
+
+    ret = target_to_host_nlmsg_route(buf, len);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return len;
 }
 
 static abi_long netlink_route_host_to_target(void *buf, size_t len)
 {
-    return host_to_target_nlmsg_route(buf, len);
+    abi_long ret;
+
+    ret = host_to_target_nlmsg_route(buf, len);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return len;
 }
 
 static TargetFdTrans target_netlink_route_trans = {
@@ -2842,12 +3335,26 @@ static TargetFdTrans target_netlink_route_trans = {
 
 static abi_long netlink_audit_target_to_host(void *buf, size_t len)
 {
-    return target_to_host_nlmsg_audit(buf, len);
+    abi_long ret;
+
+    ret = target_to_host_nlmsg_audit(buf, len);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return len;
 }
 
 static abi_long netlink_audit_host_to_target(void *buf, size_t len)
 {
-    return host_to_target_nlmsg_audit(buf, len);
+    abi_long ret;
+
+    ret = host_to_target_nlmsg_audit(buf, len);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return len;
 }
 
 static TargetFdTrans target_netlink_audit_trans = {
@@ -2989,13 +3496,22 @@ static abi_long do_sendrecvmsg_locked(int fd, struct target_msghdr *msgp,
 
     if (send) {
         if (fd_trans_target_to_host_data(fd)) {
-            ret = fd_trans_target_to_host_data(fd)(msg.msg_iov->iov_base,
+            void *host_msg;
+
+            host_msg = g_malloc(msg.msg_iov->iov_len);
+            memcpy(host_msg, msg.msg_iov->iov_base, msg.msg_iov->iov_len);
+            ret = fd_trans_target_to_host_data(fd)(host_msg,
                                                    msg.msg_iov->iov_len);
+            if (ret >= 0) {
+                msg.msg_iov->iov_base = host_msg;
+                ret = get_errno(safe_sendmsg(fd, &msg, flags));
+            }
+            g_free(host_msg);
         } else {
             ret = target_to_host_cmsg(&msg, msgp);
-        }
-        if (ret == 0) {
-            ret = get_errno(safe_sendmsg(fd, &msg, flags));
+            if (ret == 0) {
+                ret = get_errno(safe_sendmsg(fd, &msg, flags));
+            }
         }
     } else {
         ret = get_errno(safe_recvmsg(fd, &msg, flags));
@@ -3211,6 +3727,7 @@ static abi_long do_sendto(int fd, abi_ulong msg, size_t len, int flags,
 {
     void *addr;
     void *host_msg;
+    void *copy_msg = NULL;
     abi_long ret;
 
     if ((int)addrlen < 0) {
@@ -3221,22 +3738,28 @@ static abi_long do_sendto(int fd, abi_ulong msg, size_t len, int flags,
     if (!host_msg)
         return -TARGET_EFAULT;
     if (fd_trans_target_to_host_data(fd)) {
+        copy_msg = host_msg;
+        host_msg = g_malloc(len);
+        memcpy(host_msg, copy_msg, len);
         ret = fd_trans_target_to_host_data(fd)(host_msg, len);
         if (ret < 0) {
-            unlock_user(host_msg, msg, 0);
-            return ret;
+            goto fail;
         }
     }
     if (target_addr) {
         addr = alloca(addrlen+1);
         ret = target_to_host_sockaddr(fd, addr, target_addr, addrlen);
         if (ret) {
-            unlock_user(host_msg, msg, 0);
-            return ret;
+            goto fail;
         }
         ret = get_errno(safe_sendto(fd, host_msg, len, flags, addr, addrlen));
     } else {
         ret = get_errno(safe_sendto(fd, host_msg, len, flags, NULL, 0));
+    }
+fail:
+    if (copy_msg) {
+        g_free(host_msg);
+        host_msg = copy_msg;
     }
     unlock_user(host_msg, msg, 0);
     return ret;
@@ -3272,6 +3795,9 @@ static abi_long do_recvfrom(int fd, abi_ulong msg, size_t len, int flags,
         ret = get_errno(safe_recvfrom(fd, host_msg, len, flags, NULL, 0));
     }
     if (!is_error(ret)) {
+        if (fd_trans_host_to_target_data(fd)) {
+            ret = fd_trans_host_to_target_data(fd)(host_msg, ret);
+        }
         if (target_addr) {
             host_to_target_sockaddr(target_addr, addr, addrlen);
             if (put_user_u32(addrlen, target_addrlen)) {
@@ -3383,27 +3909,30 @@ static struct shm_region {
     bool in_use;
 } shm_regions[N_SHM_REGIONS];
 
-struct target_semid_ds
+#ifndef TARGET_SEMID64_DS
+/* asm-generic version of this struct */
+struct target_semid64_ds
 {
   struct target_ipc_perm sem_perm;
   abi_ulong sem_otime;
-#if !defined(TARGET_PPC64)
+#if TARGET_ABI_BITS == 32
   abi_ulong __unused1;
 #endif
   abi_ulong sem_ctime;
-#if !defined(TARGET_PPC64)
+#if TARGET_ABI_BITS == 32
   abi_ulong __unused2;
 #endif
   abi_ulong sem_nsems;
   abi_ulong __unused3;
   abi_ulong __unused4;
 };
+#endif
 
 static inline abi_long target_to_host_ipc_perm(struct ipc_perm *host_ip,
                                                abi_ulong target_addr)
 {
     struct target_ipc_perm *target_ip;
-    struct target_semid_ds *target_sd;
+    struct target_semid64_ds *target_sd;
 
     if (!lock_user_struct(VERIFY_READ, target_sd, target_addr, 1))
         return -TARGET_EFAULT;
@@ -3431,7 +3960,7 @@ static inline abi_long host_to_target_ipc_perm(abi_ulong target_addr,
                                                struct ipc_perm *host_ip)
 {
     struct target_ipc_perm *target_ip;
-    struct target_semid_ds *target_sd;
+    struct target_semid64_ds *target_sd;
 
     if (!lock_user_struct(VERIFY_WRITE, target_sd, target_addr, 0))
         return -TARGET_EFAULT;
@@ -3458,7 +3987,7 @@ static inline abi_long host_to_target_ipc_perm(abi_ulong target_addr,
 static inline abi_long target_to_host_semid_ds(struct semid_ds *host_sd,
                                                abi_ulong target_addr)
 {
-    struct target_semid_ds *target_sd;
+    struct target_semid64_ds *target_sd;
 
     if (!lock_user_struct(VERIFY_READ, target_sd, target_addr, 1))
         return -TARGET_EFAULT;
@@ -3474,7 +4003,7 @@ static inline abi_long target_to_host_semid_ds(struct semid_ds *host_sd,
 static inline abi_long host_to_target_semid_ds(abi_ulong target_addr,
                                                struct semid_ds *host_sd)
 {
-    struct target_semid_ds *target_sd;
+    struct target_semid64_ds *target_sd;
 
     if (!lock_user_struct(VERIFY_WRITE, target_sd, target_addr, 0))
         return -TARGET_EFAULT;
@@ -6485,7 +7014,7 @@ static int open_self_cmdline(void *cpu_env, int fd)
         if (!word_skipped) {
             /* Skip the first string, which is the path to qemu-*-static
                instead of the actual command. */
-            cp_buf = memchr(buf, 0, sizeof(buf));
+            cp_buf = memchr(buf, 0, nb_read);
             if (cp_buf) {
                 /* Null byte found, skip one string */
                 cp_buf++;
@@ -7618,7 +8147,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #if defined(TARGET_ALPHA)
             struct target_sigaction act, oact, *pact = 0;
             struct target_rt_sigaction *rt_act;
-            /* ??? arg4 == sizeof(sigset_t).  */
+
+            if (arg4 != sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
             if (arg2) {
                 if (!lock_user_struct(VERIFY_READ, rt_act, arg2, 1))
                     goto efault;
@@ -7642,6 +8175,10 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             struct target_sigaction *act;
             struct target_sigaction *oact;
 
+            if (arg4 != sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
             if (arg2) {
                 if (!lock_user_struct(VERIFY_READ, act, arg2, 1))
                     goto efault;
@@ -7773,6 +8310,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             int how = arg1;
             sigset_t set, oldset, *set_ptr;
 
+            if (arg4 != sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
+
             if (arg2) {
                 switch(how) {
                 case TARGET_SIG_BLOCK:
@@ -7823,6 +8365,17 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_rt_sigpending:
         {
             sigset_t set;
+
+            /* Yes, this check is >, not != like most. We follow the kernel's
+             * logic and it does it like this because it implements
+             * NR_sigpending through the same code path, and in that case
+             * the old_sigset_t is smaller in size.
+             */
+            if (arg2 > sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
+
             ret = get_errno(sigpending(&set));
             if (!is_error(ret)) {
                 if (!(p = lock_user(VERIFY_WRITE, arg1, sizeof(target_sigset_t), 0)))
@@ -7856,6 +8409,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_rt_sigsuspend:
         {
             TaskState *ts = cpu->opaque;
+
+            if (arg2 != sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
             if (!(p = lock_user(VERIFY_READ, arg1, sizeof(target_sigset_t), 1)))
                 goto efault;
             target_to_host_sigset(&ts->sigsuspend_mask, p);
@@ -7872,6 +8430,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             sigset_t set;
             struct timespec uts, *puts;
             siginfo_t uinfo;
+
+            if (arg4 != sizeof(target_sigset_t)) {
+                ret = -TARGET_EINVAL;
+                break;
+            }
 
             if (!(p = lock_user(VERIFY_READ, arg1, sizeof(target_sigset_t), 1)))
                 goto efault;
@@ -8844,12 +9407,14 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
                 goto efault;
             ret = get_errno(sys_uname(buf));
             if (!is_error(ret)) {
-                /* Overrite the native machine name with whatever is being
+                /* Overwrite the native machine name with whatever is being
                    emulated. */
                 strcpy (buf->machine, cpu_to_uname_machine(cpu_env));
                 /* Allow the user to override the reported release.  */
-                if (qemu_uname_release && *qemu_uname_release)
-                  strcpy (buf->release, qemu_uname_release);
+                if (qemu_uname_release && *qemu_uname_release) {
+                    g_strlcpy(buf->release, qemu_uname_release,
+                              sizeof(buf->release));
+                }
             }
             unlock_user_struct(buf, arg1, 1);
         }
@@ -8905,7 +9470,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         {
             int64_t res;
 #if !defined(__NR_llseek)
-            res = lseek(arg1, ((uint64_t)arg2 << 32) | arg3, arg5);
+            res = lseek(arg1, ((uint64_t)arg2 << 32) | (abi_ulong)arg3, arg5);
             if (res == -1) {
                 ret = get_errno(res);
             } else {
@@ -9132,6 +9697,12 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
                 }
 
                 if (arg4) {
+                    if (arg5 != sizeof(target_sigset_t)) {
+                        unlock_user(target_pfd, arg1, 0);
+                        ret = -TARGET_EINVAL;
+                        break;
+                    }
+
                     target_set = lock_user(VERIFY_READ, arg4, sizeof(target_sigset_t), 1);
                     if (!target_set) {
                         unlock_user(target_pfd, arg1, 0);
@@ -10953,6 +11524,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             sigset_t _set, *set = &_set;
 
             if (arg5) {
+                if (arg6 != sizeof(target_sigset_t)) {
+                    ret = -TARGET_EINVAL;
+                    break;
+                }
+
                 target_set = lock_user(VERIFY_READ, arg5,
                                        sizeof(target_sigset_t), 1);
                 if (!target_set) {

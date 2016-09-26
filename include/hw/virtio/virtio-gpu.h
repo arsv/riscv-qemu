@@ -19,6 +19,7 @@
 #include "ui/console.h"
 #include "hw/virtio/virtio.h"
 #include "hw/pci/pci.h"
+#include "qemu/log.h"
 
 #include "standard-headers/linux/virtio_gpu.h"
 #define TYPE_VIRTIO_GPU "virtio-gpu-device"
@@ -118,6 +119,8 @@ typedef struct VirtIOGPU {
         uint32_t req_3d;
         uint32_t bytes_3d;
     } stats;
+
+    Error *migration_blocker;
 } VirtIOGPU;
 
 extern const GraphicHwOps virtio_gpu_ops;

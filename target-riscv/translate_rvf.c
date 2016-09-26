@@ -295,7 +295,7 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 0000100 */ 0x04: gen_helper_fsub_s(fd, ep, f1, f2, vm); break;
         case /* 0001000 */ 0x08: gen_helper_fmul_s(fd, ep, f1, f2, vm); break;
         case /* 0001100 */ 0x0C: gen_helper_fdiv_s(fd, ep, f1, f2, vm); break;
-        case /* 0101100 */ 0x2C: gen_helper_fsqrt_s(fd, ep, f2, vm); break;
+        case /* 0101100 */ 0x2C: gen_helper_fsqrt_s(fd, ep, f1, vm); break;
         case /* 0010000 */ 0x10: gen_fsgnj(dc, fd, f1, f2, rm, 32); break;
         case /* 0010100 */ 0x14: gen_fminmax_s(dc, fd, ep, f1, f2, rm); break;
         case /* 1010000 */ 0x50: gen_fcmp_s(dc, vd, ep, f1, f2, rm); break;
@@ -304,7 +304,7 @@ static void gen_opfp(DC, uint32_t insn)
         case /* 0000101 */ 0x05: gen_helper_fsub_d(fd, ep, f1, f2, vm); break;
         case /* 0001001 */ 0x09: gen_helper_fmul_d(fd, ep, f1, f2, vm); break;
         case /* 0001101 */ 0x0D: gen_helper_fdiv_d(fd, ep, f1, f2, vm); break;
-        case /* 0101101 */ 0x2D: gen_helper_fsqrt_d(fd, ep, f2, vm); break;
+        case /* 0101101 */ 0x2D: gen_helper_fsqrt_d(fd, ep, f1, vm); break;
         case /* 0010001 */ 0x11: gen_fsgnj(dc, fd, f1, f2, rm, 64); break;
         case /* 0010101 */ 0x15: gen_fminmax_d(dc, fd, ep, f1, f2, rm); break;
         case /* 1010001 */ 0x51: gen_fcmp_d(dc, vd, ep, f1, f2, rm); break;

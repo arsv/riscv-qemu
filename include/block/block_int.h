@@ -142,8 +142,8 @@ struct BlockDriver {
         BlockCompletionFunc *cb, void *opaque);
     BlockAIOCB *(*bdrv_aio_flush)(BlockDriverState *bs,
         BlockCompletionFunc *cb, void *opaque);
-    BlockAIOCB *(*bdrv_aio_discard)(BlockDriverState *bs,
-        int64_t sector_num, int nb_sectors,
+    BlockAIOCB *(*bdrv_aio_pdiscard)(BlockDriverState *bs,
+        int64_t offset, int count,
         BlockCompletionFunc *cb, void *opaque);
 
     int coroutine_fn (*bdrv_co_readv)(BlockDriverState *bs,
@@ -165,8 +165,8 @@ struct BlockDriver {
      */
     int coroutine_fn (*bdrv_co_pwrite_zeroes)(BlockDriverState *bs,
         int64_t offset, int count, BdrvRequestFlags flags);
-    int coroutine_fn (*bdrv_co_discard)(BlockDriverState *bs,
-        int64_t sector_num, int nb_sectors);
+    int coroutine_fn (*bdrv_co_pdiscard)(BlockDriverState *bs,
+        int64_t offset, int count);
     int64_t coroutine_fn (*bdrv_co_get_block_status)(BlockDriverState *bs,
         int64_t sector_num, int nb_sectors, int *pnum,
         BlockDriverState **file);
@@ -330,36 +330,39 @@ typedef struct BlockLimits {
      * otherwise. */
     uint32_t request_alignment;
 
-    /* maximum number of bytes that can be discarded at once (since it
-     * is signed, it must be < 2G, if set), should be multiple of
+    /* Maximum number of bytes that can be discarded at once (since it
+     * is signed, it must be < 2G, if set). Must be multiple of
      * pdiscard_alignment, but need not be power of 2. May be 0 if no
      * inherent 32-bit limit */
     int32_t max_pdiscard;
 
-    /* optimal alignment for discard requests in bytes, must be power
-     * of 2, less than max_pdiscard if that is set, and multiple of
-     * bl.request_alignment. May be 0 if bl.request_alignment is good
-     * enough */
+    /* Optimal alignment for discard requests in bytes. A power of 2
+     * is best but not mandatory.  Must be a multiple of
+     * bl.request_alignment, and must be less than max_pdiscard if
+     * that is set. May be 0 if bl.request_alignment is good enough */
     uint32_t pdiscard_alignment;
 
-    /* maximum number of bytes that can zeroized at once (since it is
-     * signed, it must be < 2G, if set), should be multiple of
+    /* Maximum number of bytes that can zeroized at once (since it is
+     * signed, it must be < 2G, if set). Must be multiple of
      * pwrite_zeroes_alignment. May be 0 if no inherent 32-bit limit */
     int32_t max_pwrite_zeroes;
 
-    /* optimal alignment for write zeroes requests in bytes, must be
-     * power of 2, less than max_pwrite_zeroes if that is set, and
-     * multiple of bl.request_alignment. May be 0 if
-     * bl.request_alignment is good enough */
+    /* Optimal alignment for write zeroes requests in bytes. A power
+     * of 2 is best but not mandatory.  Must be a multiple of
+     * bl.request_alignment, and must be less than max_pwrite_zeroes
+     * if that is set. May be 0 if bl.request_alignment is good
+     * enough */
     uint32_t pwrite_zeroes_alignment;
 
-    /* optimal transfer length in bytes (must be power of 2, and
-     * multiple of bl.request_alignment), or 0 if no preferred size */
+    /* Optimal transfer length in bytes.  A power of 2 is best but not
+     * mandatory.  Must be a multiple of bl.request_alignment, or 0 if
+     * no preferred size */
     uint32_t opt_transfer;
 
-    /* maximal transfer length in bytes (need not be power of 2, but
-     * should be multiple of opt_transfer), or 0 for no 32-bit limit.
-     * For now, anything larger than INT_MAX is clamped down. */
+    /* Maximal transfer length in bytes.  Need not be power of 2, but
+     * must be multiple of opt_transfer and bl.request_alignment, or 0
+     * for no 32-bit limit.  For now, anything larger than INT_MAX is
+     * clamped down. */
     uint32_t max_transfer;
 
     /* memory alignment, in bytes so that no bounce buffer is needed */
@@ -438,6 +441,11 @@ struct BlockDriverState {
 
     int copy_on_read; /* if nonzero, copy read backing sectors into image.
                          note this is a reference count */
+
+    CoQueue flush_queue;            /* Serializing flush queue */
+    BdrvTrackedRequest *active_flush_req; /* Flush request in flight */
+    unsigned int write_gen;         /* Current data generation */
+    unsigned int flushed_gen;       /* Flushed write generation */
 
     BlockDriver *drv; /* NULL means no media */
     void *opaque;
@@ -778,7 +786,7 @@ void blk_dev_eject_request(BlockBackend *blk, bool force);
 bool blk_dev_is_tray_open(BlockBackend *blk);
 bool blk_dev_is_medium_locked(BlockBackend *blk);
 
-void bdrv_set_dirty(BlockDriverState *bs, int64_t cur_sector, int nr_sectors);
+void bdrv_set_dirty(BlockDriverState *bs, int64_t cur_sector, int64_t nr_sect);
 bool bdrv_requests_pending(BlockDriverState *bs);
 
 void bdrv_clear_dirty_bitmap(BdrvDirtyBitmap *bitmap, HBitmap **out);
