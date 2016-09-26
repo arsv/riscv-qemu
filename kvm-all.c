@@ -25,6 +25,7 @@
 #include "qemu/error-report.h"
 #include "hw/hw.h"
 #include "hw/pci/msi.h"
+#include "hw/pci/msix.h"
 #include "hw/s390x/adapter.h"
 #include "exec/gdbstub.h"
 #include "sysemu/kvm_int.h"
@@ -1046,7 +1047,16 @@ void kvm_irqchip_commit_routes(KVMState *s)
 {
     int ret;
 
+    if (kvm_gsi_direct_mapping()) {
+        return;
+    }
+
+    if (!kvm_gsi_routing_enabled()) {
+        return;
+    }
+
     s->irq_routes->flags = 0;
+    trace_kvm_irqchip_commit_routes();
     ret = kvm_vm_ioctl(s, KVM_SET_GSI_ROUTING, s->irq_routes);
     assert(ret == 0);
 }
@@ -1093,8 +1103,6 @@ static int kvm_update_routing_entry(KVMState *s,
 
         *entry = *new_entry;
 
-        kvm_irqchip_commit_routes(s);
-
         return 0;
     }
 
@@ -1132,6 +1140,7 @@ void kvm_irqchip_release_virq(KVMState *s, int virq)
         }
     }
     clear_gsi(s, virq);
+    kvm_arch_release_virq_post(virq);
 }
 
 static unsigned int kvm_hash_msi(uint32_t data)
@@ -1237,10 +1246,15 @@ int kvm_irqchip_send_msi(KVMState *s, MSIMessage msg)
     return kvm_set_irq(s, route->kroute.gsi, 1);
 }
 
-int kvm_irqchip_add_msi_route(KVMState *s, MSIMessage msg, PCIDevice *dev)
+int kvm_irqchip_add_msi_route(KVMState *s, int vector, PCIDevice *dev)
 {
     struct kvm_irq_routing_entry kroute = {};
     int virq;
+    MSIMessage msg = {0, 0};
+
+    if (dev) {
+        msg = pci_get_msi_message(dev, vector);
+    }
 
     if (kvm_gsi_direct_mapping()) {
         return kvm_arch_msi_data_to_gsi(msg.data);
@@ -1266,7 +1280,10 @@ int kvm_irqchip_add_msi_route(KVMState *s, MSIMessage msg, PCIDevice *dev)
         return -EINVAL;
     }
 
+    trace_kvm_irqchip_add_msi_route(virq);
+
     kvm_add_routing_entry(s, &kroute);
+    kvm_arch_add_msi_route_post(&kroute, vector, dev);
     kvm_irqchip_commit_routes(s);
 
     return virq;
@@ -1294,6 +1311,8 @@ int kvm_irqchip_update_msi_route(KVMState *s, int virq, MSIMessage msg,
     if (kvm_arch_fixup_msi_route(&kroute, msg.address, msg.data, dev)) {
         return -EINVAL;
     }
+
+    trace_kvm_irqchip_update_msi_route(virq);
 
     return kvm_update_routing_entry(s, &kroute);
 }
@@ -1390,7 +1409,7 @@ int kvm_irqchip_send_msi(KVMState *s, MSIMessage msg)
     abort();
 }
 
-int kvm_irqchip_add_msi_route(KVMState *s, MSIMessage msg)
+int kvm_irqchip_add_msi_route(KVMState *s, int vector, PCIDevice *dev)
 {
     return -ENOSYS;
 }
@@ -2124,7 +2143,7 @@ void kvm_device_access(int fd, int group, uint64_t attr,
     if (err < 0) {
         error_report("KVM_%s_DEVICE_ATTR failed: %s",
                      write ? "SET" : "GET", strerror(-err));
-        error_printf("Group %d attr 0x%016" PRIx64, group, attr);
+        error_printf("Group %d attr 0x%016" PRIx64 "\n", group, attr);
         abort();
     }
 }

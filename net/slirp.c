@@ -131,13 +131,15 @@ static void net_slirp_cleanup(NetClientState *nc)
     SlirpState *s = DO_UPCAST(SlirpState, nc, nc);
 
     slirp_cleanup(s->slirp);
-    qemu_remove_exit_notifier(&s->exit_notifier);
+    if (s->exit_notifier.notify) {
+        qemu_remove_exit_notifier(&s->exit_notifier);
+    }
     slirp_smb_cleanup(s);
     QTAILQ_REMOVE(&slirp_stacks, s, entry);
 }
 
 static NetClientInfo net_slirp_info = {
-    .type = NET_CLIENT_OPTIONS_KIND_USER,
+    .type = NET_CLIENT_DRIVER_USER,
     .size = sizeof(SlirpState),
     .receive = net_slirp_receive,
     .cleanup = net_slirp_cleanup,
@@ -828,7 +830,7 @@ static const char **slirp_dnssearch(const StringList *dnsname)
     return ret;
 }
 
-int net_init_slirp(const NetClientOptions *opts, const char *name,
+int net_init_slirp(const Netdev *netdev, const char *name,
                    NetClientState *peer, Error **errp)
 {
     /* FIXME error_setg(errp, ...) on failure */
@@ -839,8 +841,8 @@ int net_init_slirp(const NetClientOptions *opts, const char *name,
     const char **dnssearch;
     bool ipv4 = true, ipv6 = true;
 
-    assert(opts->type == NET_CLIENT_OPTIONS_KIND_USER);
-    user = opts->u.user.data;
+    assert(netdev->type == NET_CLIENT_DRIVER_USER);
+    user = &netdev->u.user;
 
     if ((user->has_ipv6 && user->ipv6 && !user->has_ipv4) ||
         (user->has_ipv4 && !user->ipv4)) {

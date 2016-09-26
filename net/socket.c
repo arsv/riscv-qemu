@@ -311,7 +311,7 @@ static void net_socket_cleanup(NetClientState *nc)
 }
 
 static NetClientInfo net_dgram_socket_info = {
-    .type = NET_CLIENT_OPTIONS_KIND_SOCKET,
+    .type = NET_CLIENT_DRIVER_SOCKET,
     .size = sizeof(NetSocketState),
     .receive = net_socket_receive_dgram,
     .cleanup = net_socket_cleanup,
@@ -395,7 +395,7 @@ static void net_socket_connect(void *opaque)
 }
 
 static NetClientInfo net_socket_info = {
-    .type = NET_CLIENT_OPTIONS_KIND_SOCKET,
+    .type = NET_CLIENT_DRIVER_SOCKET,
     .size = sizeof(NetSocketState),
     .receive = net_socket_receive,
     .cleanup = net_socket_cleanup,
@@ -489,30 +489,41 @@ static int net_socket_listen_init(NetClientState *peer,
 {
     NetClientState *nc;
     NetSocketState *s;
-    SocketAddress *saddr;
-    int ret;
-    Error *local_error = NULL;
+    struct sockaddr_in saddr;
+    int fd, ret;
 
-    saddr = socket_parse(host_str, &local_error);
-    if (saddr == NULL) {
-        error_report_err(local_error);
+    if (parse_host_port(&saddr, host_str) < 0)
+        return -1;
+
+    fd = qemu_socket(PF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        perror("socket");
         return -1;
     }
+    qemu_set_nonblock(fd);
 
-    ret = socket_listen(saddr, &local_error);
+    socket_set_fast_reuse(fd);
+
+    ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0) {
-        error_report_err(local_error);
+        perror("bind");
+        closesocket(fd);
+        return -1;
+    }
+    ret = listen(fd, 0);
+    if (ret < 0) {
+        perror("listen");
+        closesocket(fd);
         return -1;
     }
 
     nc = qemu_new_net_client(&net_socket_info, peer, model, name);
     s = DO_UPCAST(NetSocketState, nc, nc);
     s->fd = -1;
-    s->listen_fd = ret;
+    s->listen_fd = fd;
     s->nc.link_down = true;
 
     qemu_set_fd_handler(s->listen_fd, net_socket_accept, NULL, s);
-    qapi_free_SocketAddress(saddr);
     return 0;
 }
 
@@ -523,15 +534,10 @@ static int net_socket_connect_init(NetClientState *peer,
 {
     NetSocketState *s;
     int fd, connected, ret;
-    char *addr_str;
-    SocketAddress *saddr;
-    Error *local_error = NULL;
+    struct sockaddr_in saddr;
 
-    saddr = socket_parse(host_str, &local_error);
-    if (saddr == NULL) {
-        error_report_err(local_error);
+    if (parse_host_port(&saddr, host_str) < 0)
         return -1;
-    }
 
     fd = qemu_socket(PF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
@@ -539,9 +545,10 @@ static int net_socket_connect_init(NetClientState *peer,
         return -1;
     }
     qemu_set_nonblock(fd);
+
     connected = 0;
     for(;;) {
-        ret = socket_connect(saddr, &local_error, NULL, NULL);
+        ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
         if (ret < 0) {
             if (errno == EINTR || errno == EWOULDBLOCK) {
                 /* continue */
@@ -550,7 +557,7 @@ static int net_socket_connect_init(NetClientState *peer,
                        errno == EINVAL) {
                 break;
             } else {
-                error_report_err(local_error);
+                perror("connect");
                 closesocket(fd);
                 return -1;
             }
@@ -562,15 +569,9 @@ static int net_socket_connect_init(NetClientState *peer,
     s = net_socket_fd_init(peer, model, name, fd, connected);
     if (!s)
         return -1;
-
-    addr_str = socket_address_to_string(saddr, &local_error);
-    if (addr_str == NULL)
-        return -1;
-
     snprintf(s->nc.info_str, sizeof(s->nc.info_str),
-             "socket: connect to %s", addr_str);
-    qapi_free_SocketAddress(saddr);
-    g_free(addr_str);
+             "socket: connect to %s:%d",
+             inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
     return 0;
 }
 
@@ -663,15 +664,15 @@ static int net_socket_udp_init(NetClientState *peer,
     return 0;
 }
 
-int net_init_socket(const NetClientOptions *opts, const char *name,
+int net_init_socket(const Netdev *netdev, const char *name,
                     NetClientState *peer, Error **errp)
 {
     /* FIXME error_setg(errp, ...) on failure */
     Error *err = NULL;
     const NetdevSocketOptions *sock;
 
-    assert(opts->type == NET_CLIENT_OPTIONS_KIND_SOCKET);
-    sock = opts->u.socket.data;
+    assert(netdev->type == NET_CLIENT_DRIVER_SOCKET);
+    sock = &netdev->u.socket;
 
     if (sock->has_fd + sock->has_listen + sock->has_connect + sock->has_mcast +
         sock->has_udp != 1) {

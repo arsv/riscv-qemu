@@ -62,6 +62,8 @@ static Property pci_props[] = {
                     QEMU_PCI_CAP_MULTIFUNCTION_BITNR, false),
     DEFINE_PROP_BIT("command_serr_enable", PCIDevice, cap_present,
                     QEMU_PCI_CAP_SERR_BITNR, true),
+    DEFINE_PROP_BIT("x-pcie-lnksta-dllla", PCIDevice, cap_present,
+                    QEMU_PCIE_LNKSTA_DLLLA_BITNR, true),
     DEFINE_PROP_END_OF_LIST()
 };
 
@@ -2594,6 +2596,21 @@ PCIDevice *pci_get_function_0(PCIDevice *pci_dev)
         /* Other bus types might support multiple devices at slots 0-31 */
         return pci_dev->bus->devices[PCI_DEVFN(PCI_SLOT(pci_dev->devfn), 0)];
     }
+}
+
+MSIMessage pci_get_msi_message(PCIDevice *dev, int vector)
+{
+    MSIMessage msg;
+    if (msix_enabled(dev)) {
+        msg = msix_get_message(dev, vector);
+    } else if (msi_enabled(dev)) {
+        msg = msi_get_message(dev, vector);
+    } else {
+        /* Should never happen */
+        error_report("%s: unknown interrupt type", __func__);
+        abort();
+    }
+    return msg;
 }
 
 static const TypeInfo pci_device_type_info = {
