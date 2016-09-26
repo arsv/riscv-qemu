@@ -1947,6 +1947,7 @@ struct target_stat {
     unsigned int __unused5;
 };
 
+#if !defined(TARGET_RISCV64)
 #define TARGET_HAS_STRUCT_STAT64
 struct target_stat64 {
     uint64_t st_dev;
@@ -1970,6 +1971,7 @@ struct target_stat64 {
     unsigned int __unused4;
     unsigned int __unused5;
 };
+#endif
 
 #else
 #error unsupported CPU
