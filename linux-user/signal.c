@@ -5913,9 +5913,9 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
 
     env->pc = ka->_sa_handler;
     env->gpr[xSP] = frame_addr;
-    env->gpr[xA1] = sig;
-    env->gpr[xA2] = frame_addr + offsetof(struct target_rt_sigframe, info);
-    env->gpr[xA3] = frame_addr + offsetof(struct target_rt_sigframe, uc);
+    env->gpr[xA0] = sig;
+    env->gpr[xA1] = frame_addr + offsetof(struct target_rt_sigframe, info);
+    env->gpr[xA2] = frame_addr + offsetof(struct target_rt_sigframe, uc);
     env->gpr[xRA] = frame_addr + offsetof(struct target_rt_sigframe, tramp);
 
     return;
