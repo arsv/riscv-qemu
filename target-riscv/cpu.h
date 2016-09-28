@@ -51,6 +51,10 @@
 #define RISCV_AMO_BADINSN 1
 #define RISCV_AMO_BADADDR 2
 
+/* MMU return codes */
+#define TRANSLATE_FAIL   -1
+#define TRANSLATE_SUCCESS 0
+
 /* Special names for GPRs */
 
 #define xRA 1   /* return address (aka link register) */
@@ -103,11 +107,15 @@ typedef struct CPURISCVState {
     unsigned frm;		/* CSR fp rounding mode */
 
     target_ulong sbadaddr;
-
+#ifdef CONFIG_USER_ONLY
     uint32_t amoinsn;
     target_long amoaddr;
     target_long amotest;
-
+#else
+    target_ulong priv;
+    target_ulong mstatus;
+    target_ulong sptbr;
+#endif
     CPU_COMMON
 
 } CPURISCVState;
@@ -144,6 +152,9 @@ int riscv_cpu_do_usermode_amo(CPUState* cs);
 
 target_long riscv_arch_specific_syscall(CPURISCVState *env, int num,
         target_long cmd, target_long arg1, target_long arg2, target_long arg3);
+
+int riscv_cpu_handle_mmu_fault(CPUState *cs, vaddr address,
+        int access_type, int mmu_idx);
 
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))

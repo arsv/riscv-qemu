@@ -1,7 +1,8 @@
 /*
  * RISC-V virtual CPU, core QOM routines
  *
- * Copyright (c) 2016 Alex Suykov <alex.suykov@gmail.com>
+ * Author: Sagar Karandikar <sagark@eecs.berkeley.edu>
+ *         Alex Suykov <alex.suykov@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -103,14 +104,6 @@ static void riscv_cpu_set_pc(CPUState *cs, vaddr value)
     RISCVCPU *cpu = RISCV_CPU(cs);
 
     cpu->env.pc = value;
-}
-
-static int riscv_cpu_handle_mmu_fault(CPUState *cs,
-		vaddr address, int rw, int mmu_idx)
-{
-    cs->exception_index = EXCP_FAULT;
-
-    return 1;
 }
 
 /* QOM stuff, class registration. */
