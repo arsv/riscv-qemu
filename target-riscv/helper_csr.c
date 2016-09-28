@@ -21,6 +21,7 @@
 #include "exception.h"
 #include "exec/helper-proto.h"
 #include "exec/exec-all.h"
+#include "cpubits.h"
 
 #define BITFIELD(src, end, start) \
             (((src) >> start) & ((1 << (end - start + 1)) - 1))
@@ -96,6 +97,35 @@ void riscv_set_fcsr(ENV, unsigned val)
     riscv_set_frm(env, BITFIELD(val, 7, 5));
 }
 
+#ifndef CONFIG_USER_ONLY
+
+static void rv_set_sptbr(ENV, target_ulong val)
+{
+    env->sptbr = val;
+    /* flush here? */
+}
+
+static void rv_set_medeleg(ENV, target_ulong val)
+{
+    target_ulong mask = 
+          (1 << RISCV_EXCP_INST_ADDR_MIS)
+        | (1 << RISCV_EXCP_INST_ACCESS_FAULT)
+        | (1 << RISCV_EXCP_ILLEGAL_INST)
+        | (1 << RISCV_EXCP_BREAKPOINT)
+        | (1 << RISCV_EXCP_LOAD_ADDR_MIS)
+        | (1 << RISCV_EXCP_LOAD_ACCESS_FAULT)
+        | (1 << RISCV_EXCP_STORE_AMO_ADDR_MIS)
+        | (1 << RISCV_EXCP_STORE_AMO_ACCESS_FAULT)
+        | (1 << RISCV_EXCP_U_ECALL)
+        | (1 << RISCV_EXCP_S_ECALL)
+        | (1 << RISCV_EXCP_H_ECALL)
+        | (1 << RISCV_EXCP_M_ECALL);
+
+    env->medeleg = (env->medeleg & ~mask) | (val & mask);
+}
+
+#endif
+
 /* Primary CSR tables.
    RW registers should appear in both tables, RO only in rv_get_csr().
    There are not other checks for RO/RW status. */
@@ -106,6 +136,16 @@ static target_ulong rv_get_csr(ENV, unsigned csr)
         case 0x001: return riscv_get_fflags(env);
         case 0x002: return env->frm;
         case 0x003: return riscv_get_fcsr(env);
+#ifndef CONFIG_USER_ONLY
+        case 0x180: return env->sptbr;
+        case 0x300: return env->mstatus;
+        case 0x302: return env->medeleg;
+        case 0x303: return env->mideleg;
+        case 0x304: return env->mie;
+        case 0x305: return env->mtvec;
+        case 0x341: return env->mepc;
+        case 0x342: return env->mcause;
+#endif
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
@@ -116,6 +156,15 @@ static void rv_set_csr(ENV, unsigned csr, target_ulong val)
         case 0x001: riscv_set_fflags(env, val); break;
         case 0x002: riscv_set_frm(env, val); break;
         case 0x003: riscv_set_fcsr(env, val); break;
+#ifndef CONFIG_USER_ONLY
+        case 0x180: rv_set_sptbr(env, val); break;
+        case 0x300: env->mstatus = val; break;
+        case 0x305: env->mtvec = val >> 2 << 2; break;
+        case 0x302: rv_set_medeleg(env, val); break;
+        case 0x303: env->mideleg = val; break;
+        case 0x341: env->mepc = val; break;
+        case 0x342: env->mcause = val; break;
+#endif
         default: raise_exception(env, EXCP_ILLEGAL);
     }
 }
