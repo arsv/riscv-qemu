@@ -27,7 +27,36 @@
 #include "cpu.h"
 #include "cpubits.h"
 
-#ifndef CONFIG_USER_ONLY
+#ifdef CONFIG_USER_ONLY
+
+int cpu_riscv_mmu_index(CPURISCVState *env, bool ifetch)
+{
+	return 0;
+}
+
+int riscv_cpu_handle_mmu_fault(CPUState *cs, vaddr address,
+        int access_type, int mmu_idx)
+{
+    return -1;
+}
+
+#else
+
+/* Compute mmu inded. Adapted from Spike's mmu_t::translate */
+
+int cpu_riscv_mmu_index(CPURISCVState *env, bool ifetch)
+{
+    target_ulong mode = env->priv;
+    if (!ifetch) {
+        if (get_field(env->mstatus, MSTATUS_MPRV)) {
+            mode = get_field(env->mstatus, MSTATUS_MPP);
+        }
+    }
+    if (get_field(env->mstatus, MSTATUS_VM) == VM_MBARE) {
+        mode = PRV_M;
+    }
+    return mode;
+}
 
 /* get_physical_address - get the physical address for this virtual address
  *
@@ -190,25 +219,20 @@ static void raise_mmu_exception(CPURISCVState *env, target_ulong address,
     cs->exception_index = EXCP_FAULT;
 }
 
-#endif
-
 int riscv_cpu_handle_mmu_fault(CPUState *cs, vaddr address,
         int access_type, int mmu_idx)
 {
     RISCVCPU *cpu = RISCV_CPU(cs);
     CPURISCVState *env = &cpu->env;
-#ifndef CONFIG_USER_ONLY
     hwaddr physical;
     physical = 0; /* stop gcc complaining */
     int prot;
-#endif
     int ret = -1;
 
     qemu_log_mask(CPU_LOG_MMU,
             "%s pc " TARGET_FMT_lx " ad %" VADDR_PRIx " access_type %d mmu_idx \
              %d\n", __func__, env->pc, address, access_type, mmu_idx);
 
-#ifndef CONFIG_USER_ONLY
     ret = get_physical_address(env, &physical, &prot, address, access_type,
                                mmu_idx);
     qemu_log_mask(CPU_LOG_MMU,
@@ -222,12 +246,9 @@ int riscv_cpu_handle_mmu_fault(CPUState *cs, vaddr address,
     } else if (ret == TRANSLATE_FAIL) {
         raise_mmu_exception(env, address, access_type);
     }
-#endif
 
     return ret;
 }
-
-#ifndef CONFIG_USER_ONLY
 
 /* called by qemu's softmmu to fill the qemu tlb */
 void tlb_fill(CPUState *cs, target_ulong addr, MMUAccessType access_type,

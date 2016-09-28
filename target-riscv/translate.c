@@ -59,6 +59,7 @@ typedef struct DisasContext {
     target_ulong npc; /* next pc, skips instruction being decoded */
     bool jump;
     bool singlestep;
+    int memidx;
 } DisasContext;
 
 #define DC DisasContext* dc
@@ -280,6 +281,7 @@ void gen_intermediate_code(CPURISCVState *env, struct TranslationBlock *tb)
     dc->pc = tb->pc;
     dc->jump = false;
     dc->singlestep = cs->singlestep_enabled;
+    dc->memidx = cpu_riscv_mmu_index(env, 0);
 
     gen_tb_start(tb);
 

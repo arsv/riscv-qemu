@@ -182,10 +182,12 @@ void riscv_cpu_do_interrupt(CPUState *cs);
 bool riscv_cpu_exec_interrupt(CPUState *cs, int interrupt_request);
 bool riscv_cpu_has_work(CPUState *cs);
 
+int cpu_riscv_mmu_index(CPURISCVState *env, bool ifetch);
 void riscv_tlb_flush(CPURISCVState* env);
 void riscv_set_privilege(CPURISCVState* env, int priv);
 
 #define cpu_list cpu_riscv_list
+#define cpu_mmu_index(env, ifetch) cpu_riscv_mmu_index(env, ifetch)
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))
 #define cpu_signal_handler cpu_riscv_signal_handler
 
@@ -197,11 +199,6 @@ static inline void cpu_get_tb_cpu_state(CPURISCVState *env,
     *pc = env->pc;
     *cs_base = 0;
     *flags = 0;
-}
-
-static inline int cpu_mmu_index(CPURISCVState *env, bool ifetch)
-{
-    return 0;
 }
 
 static inline target_ulong cpu_get_pc(CPURISCVState *env)

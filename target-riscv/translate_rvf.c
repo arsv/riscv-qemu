@@ -12,7 +12,7 @@ static void gen_loadfp(DC, uint32_t insn)
     int imm = ((int32_t)insn >> 20);
     unsigned rd = BITFIELD(insn, 11, 7);
     unsigned rs = BITFIELD(insn, 19, 15);
-    unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
+    unsigned memidx = dc->memidx;
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs], imm) : cpu_gpr[rs];
     TCGf vd = cpu_fpr[rd];
@@ -32,7 +32,7 @@ static void gen_storefp(DC, uint32_t insn)
     unsigned rs2 = BITFIELD(insn, 24, 20);  /* fpr to store */
     int32_t imm = BITFIELD(insn, 11, 7) |    /* 5 lower bits from insn */
            (((int32_t)insn >> 20) & ~0x1F);  /* 31:25 and 5 clear bits */
-    unsigned memidx = 0;   /* mmu, always 0 in linux-user mode */
+    unsigned memidx = dc->memidx;
 
     TCGv va = imm ? temp_new_rsum(cpu_gpr[rs1], imm) : cpu_gpr[rs1];
     TCGf vs = cpu_fpr[rs2];

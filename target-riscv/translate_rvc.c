@@ -250,8 +250,7 @@ static void gen_clw(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_w(insn);
-    int memidx = 0;
-    tcg_gen_qemu_ld32s(vr, va, memidx);
+    tcg_gen_qemu_ld32s(vr, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -260,8 +259,7 @@ static void gen_cld(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_ld64(vr, va, memidx);
+    tcg_gen_qemu_ld64(vr, va, dc->memidx);
     tcg_temp_free(va);
 }
 #endif
@@ -270,8 +268,7 @@ static void gen_cfld(DC, uint16_t insn)
 {
     TCGf vd = cpu_fpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_ld64(vd, va, memidx);
+    tcg_gen_qemu_ld64(vd, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -279,8 +276,7 @@ static void gen_csw(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_w(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st32(vr, va, memidx);
+    tcg_gen_qemu_st32(vr, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -289,8 +285,7 @@ static void gen_csd(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st64(vr, va, memidx);
+    tcg_gen_qemu_st64(vr, va, dc->memidx);
     tcg_temp_free(va);
 }
 #endif
@@ -299,8 +294,7 @@ static void gen_cfsd(DC, uint16_t insn)
 {
     TCGf vr = cpu_fpr[rv_cl_regnum(insn)];
     TCGv va = rv_cl_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st64(vr, va, memidx);
+    tcg_gen_qemu_st64(vr, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -323,13 +317,12 @@ static void gen_clwsp(DC, uint16_t insn)
           (BITFIELD(insn, 3, 2) << 6)
         | (BITFIELD(insn, 6, 4) << 2)
         | (ONEBIT(insn, 12) << 5);
-    int memidx = 0;
 
     if(!rd) return;
 
     TCGv vd = cpu_gpr[rd];
     TCGv va = rv_ci_sp_address(imm);
-    tcg_gen_qemu_ld32s(vd, va, memidx);
+    tcg_gen_qemu_ld32s(vd, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -341,13 +334,12 @@ static void gen_cldsp(DC, uint16_t insn)
         (BITFIELD(insn, 4, 2) << 6) |
         (BITFIELD(insn, 6, 5) << 3) |
         (ONEBIT(insn, 12) << 5);
-    int memidx = 0;
 
     if(!rd) return;
 
     TCGv vd = cpu_gpr[rd];
     TCGv va = rv_ci_sp_address(imm);
-    tcg_gen_qemu_ld64(vd, va, memidx);
+    tcg_gen_qemu_ld64(vd, va, dc->memidx);
     tcg_temp_free(va);
 }
 #endif
@@ -359,11 +351,10 @@ static void gen_cfldsp(DC, uint16_t insn)
         (BITFIELD(insn, 4, 2) << 6) |
         (BITFIELD(insn, 6, 3) << 3) |
         (ONEBIT(insn, 12) << 5);
-    int memidx = 0;
 
     TCGf vd = cpu_fpr[rd];
     TCGv va = rv_ci_sp_address(imm);
-    tcg_gen_qemu_ld64(vd, va, memidx);
+    tcg_gen_qemu_ld64(vd, va, dc->memidx);
     tcg_temp_free(va);
 }
 
@@ -399,8 +390,7 @@ static void gen_cswsp(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_w(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st32(vr, va, memidx);
+    tcg_gen_qemu_st32(vr, va, dc->memidx);
 }
 
 #ifndef TARGET_RISCV32
@@ -408,8 +398,7 @@ static void gen_csdsp(DC, uint16_t insn)
 {
     TCGv vr = cpu_gpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st64(vr, va, memidx);
+    tcg_gen_qemu_st64(vr, va, dc->memidx);
 }
 #endif
 
@@ -417,8 +406,7 @@ static void gen_cfsdsp(DC, uint16_t insn)
 {
     TCGf vr = cpu_fpr[rv_css_regnum(insn)];
     TCGv va = rv_css_address_d(insn);
-    int memidx = 0;
-    tcg_gen_qemu_st64(vr, va, memidx);
+    tcg_gen_qemu_st64(vr, va, dc->memidx);
 }
 
 /* Immediate arithmetics */
