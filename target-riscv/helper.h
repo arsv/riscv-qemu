@@ -20,6 +20,11 @@
 DEF_HELPER_FLAGS_2(exception, 0, void, env, i32)
 
 DEF_HELPER_FLAGS_2(csr, 0, void, env, i32)
+#ifndef CONFIG_USER_ONLY
+DEF_HELPER_FLAGS_1(flush, 0, void, env)
+DEF_HELPER_FLAGS_1(sret, 0, void, env)
+DEF_HELPER_FLAGS_1(mret, 0, void, env)
+#endif
 
 DEF_HELPER_FLAGS_5(fmadd_s,  0, f64, env, f64, f64, f64, i32)
 DEF_HELPER_FLAGS_5(fmsub_s,  0, f64, env, f64, f64, f64, i32)

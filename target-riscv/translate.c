@@ -172,6 +172,7 @@ void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
 #include "translate_rvm.c"
 #include "translate_rvi.c"
 #include "translate_rvc.c"
+#include "translate_sys.c"
 
 /* Most insns are decoded in two jumps: major opcode first,
    then whatever func* bits are used to determine the actual op.
