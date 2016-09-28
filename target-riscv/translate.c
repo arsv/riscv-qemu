@@ -71,7 +71,9 @@ static TCGv_env cpu_env;
 static TCGv cpu_pc;
 static TCGv cpu_gpr[32];
 static TCGf cpu_fpr[32];
+#ifdef CONFIG_USER_ONLY
 static TCGv_i32 cpu_amoinsn;
+#endif
 
 /* FIXME: it is wrong to assume sizeof(fpr) == sizeof(gpr), in particular
    RV32 is likely to have 64-bit floats (RV32D), but for now the implementation
@@ -139,9 +141,11 @@ void riscv_translate_init(void)
                         offsetof(CPURISCVState, fpr[i]),
                         riscv_fprnames[i]);
 
+#ifdef CONFIG_USER_ONLY
     cpu_amoinsn = tcg_global_mem_new_i32(cpu_env,
                     offsetof(CPURISCVState, amoinsn),
                     "amoinsn");
+#endif
 }
 
 void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
