@@ -186,7 +186,7 @@ static void raise_mmu_exception(CPURISCVState *env, target_ulong address,
 {
     CPUState *cs = CPU(riscv_env_get_cpu(env));
 
-    env->sbadaddr = address;
+    env->badaddr = address;
     cs->exception_index = EXCP_FAULT;
 }
 
