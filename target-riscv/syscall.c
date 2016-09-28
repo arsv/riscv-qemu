@@ -1,8 +1,9 @@
+#include "qemu/osdep.h"
+#include "cpu.h"
+
 #ifdef CONFIG_USER_ONLY
 
-#include "qemu/osdep.h"
 #include "qemu.h"
-#include "cpu.h"
 
 static target_long riscv_syscall_cmpxchg(target_long addr,
         target_long vold, target_long vnew)
