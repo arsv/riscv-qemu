@@ -206,7 +206,7 @@ int riscv_cpu_do_usermode_amo(CPUState* cs)
     }
 
     if(ret == RISCV_AMO_BADADDR)
-        env->sbadaddr = rs1;
+        env->badaddr = rs1;
 
     return ret;
 }

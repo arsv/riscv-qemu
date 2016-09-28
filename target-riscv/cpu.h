@@ -106,7 +106,8 @@ typedef struct CPURISCVState {
     float_status fpstatus;
     unsigned frm;		/* CSR fp rounding mode */
 
-    target_ulong sbadaddr;
+    target_ulong badaddr;
+
 #ifdef CONFIG_USER_ONLY
     uint32_t amoinsn;
     target_long amoaddr;

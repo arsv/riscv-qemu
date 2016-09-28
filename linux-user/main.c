@@ -3840,7 +3840,7 @@ void cpu_loop(CPURISCVState *env)
                 case RISCV_AMO_BADADDR:
                     signum = TARGET_SIGSEGV;
                     sigcode = TARGET_SEGV_MAPERR;
-                    sigaddr = env->sbadaddr;
+                    sigaddr = env->badaddr;
                 case RISCV_AMO_BADINSN:
                 default:
                     signum = TARGET_SIGILL;
