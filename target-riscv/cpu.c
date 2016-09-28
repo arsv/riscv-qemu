@@ -81,24 +81,6 @@ static void riscv_cpu_reset(CPUState *s)
     s->exception_index = -1;
 }
 
-static bool riscv_cpu_has_work(CPUState *cs)
-{
-    return 0;
-}
-
-static void riscv_cpu_do_interrupt(CPUState *cs)
-{
-    /* stub */
-    printf("%s\n", __FUNCTION__);
-}
-
-static bool riscv_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
-{
-    /* stub */
-    printf("%s %i\n", __FUNCTION__, interrupt_request);
-    return 0;
-}
-
 static void riscv_cpu_set_pc(CPUState *cs, vaddr value)
 {
     RISCVCPU *cpu = RISCV_CPU(cs);

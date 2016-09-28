@@ -45,6 +45,8 @@
 #define EXCP_SYSCALL      2   /* linux syscall (ecall in linux-user mode) */
 #define EXCP_FAULT        3   /* unmapped mem access */
 #define EXCP_ATOMIC       4   /* AMO handling request */
+#define EXCP_INT0        10
+#define EXCP_INTn        29   /* 20 interrupts for now */
 
 /* Return codes for riscv_cpu_do_userspace_amo */
 #define RISCV_AMO_OK      0
@@ -116,7 +118,26 @@ typedef struct CPURISCVState {
     target_ulong priv;
     target_ulong mstatus;
     target_ulong sptbr;
+
+    target_ulong mip;
+    target_ulong mie;
+    target_ulong mideleg;
+
+    target_ulong sbadaddr;
+    target_ulong mbadaddr;
+    target_ulong medeleg;
+
+    target_ulong stvec;
+    target_ulong sepc;
+    target_ulong scause;
+
+    target_ulong mtvec;
+    target_ulong mepc;
+    target_ulong mcause;
+
+    void *irq[8];
 #endif
+
     CPU_COMMON
 
 } CPURISCVState;
@@ -156,6 +177,13 @@ target_long riscv_arch_specific_syscall(CPURISCVState *env, int num,
 
 int riscv_cpu_handle_mmu_fault(CPUState *cs, vaddr address,
         int access_type, int mmu_idx);
+
+void riscv_cpu_do_interrupt(CPUState *cs);
+bool riscv_cpu_exec_interrupt(CPUState *cs, int interrupt_request);
+bool riscv_cpu_has_work(CPUState *cs);
+
+void riscv_tlb_flush(CPURISCVState* env);
+void riscv_set_privilege(CPURISCVState* env, int priv);
 
 #define cpu_list cpu_riscv_list
 #define cpu_init(cpu_model) CPU(cpu_riscv_init(cpu_model))

@@ -244,4 +244,25 @@ void tlb_fill(CPUState *cs, target_ulong addr, MMUAccessType access_type,
     cpu_loop_exit(cs);
 }
 
+void riscv_tlb_flush(CPURISCVState* env)
+{
+    RISCVCPU* cpu = riscv_env_get_cpu(env);
+    tlb_flush(CPU(cpu), 1);
+}
+
+void riscv_set_privilege(CPURISCVState* env, int priv)
+{
+    switch(priv) {
+        case PRV_U:
+        case PRV_S:
+        case PRV_M:
+            riscv_tlb_flush(env);
+            env->priv = priv;
+            break;
+        default:
+            printf("INVALID PRIV SET\n");
+            exit(1);
+    }
+}
+
 #endif
