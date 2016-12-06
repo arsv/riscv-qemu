@@ -1,26 +1,22 @@
 About
 ~~~~~
-This repo a personal side branch of QEMU with the goal of developing RISC-V
-target support in a way that would allow merging it into the mainline project.
-See http://qemu.org and git://git.qemu.org/qemu.git
+This repo a personal side branch of RISC-V QEMU.
 
-This repo is not directly related to the official RISC-V qemu project
-found at https://github.com/riscv/riscv-qemu
-Major changes include:
+Current status re. riscv/riscv-qemu:
 
-  * incremental code build-up allowing for small reviewable commits
-  * linux-user mode (but no system mode atm)
-  * shorter and simplier TCG frontend
-  * more efficient TCG code for some ops, less helpers
-  * support for RV32 and compresses opcodes
+  * alternative TCG frontend:
+    * different implementation insn decoder
+    * different implementation of certain instructions
+    * RVC support
+    * missing privileged instructions
+  * some nasty linux-user bugs
 
-The project started as an attempt to add linux-user mode to the official
-riscv-qemu, but ended up with a clean-sheet rewrite of the whole translation
-module and most of the supporting structure as well. A lot of code is based
-on openrisc, sh4 and microblaze ports; the original port was apparently
-based on target-mips.
+Linux-user code has been merged into riscv/riscv-qemu.
+The parent repo improved their frontend a lot since the time
+this branch started, and fixed certain bugs still present here.
 
-The visible "devel" branch is not what is going to be the final set of patches.
+Do not use this if you just need a RISC-V qemu.
+See https://github.com/riscv/riscv-qemu instead.
 
 
 Coverage and status
@@ -33,8 +29,6 @@ Most CSRs are not properly supported, including mandatory counters.
 This implementation follows RISC-V ISA spec version 2.1.
 
 GDB remote debugging works.
-
-Current plans: minimalistic system mode.
 
 
 Building
